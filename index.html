@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -193,6 +193,11 @@ html,body{min-height:100%;font-family:system-ui,-apple-system,sans-serif;font-si
 .gbar{position:absolute;height:100%;border-radius:2px;display:flex;align-items:center;padding:0 6px;font-size:10px;overflow:hidden;white-space:nowrap;font-weight:500;z-index:2;cursor:pointer;transition:opacity .18s,filter .18s}
 .gbar:hover{filter:brightness(1.12)}
 .gbar.bdim{opacity:.14;filter:grayscale(1)}
+.gbar.proj-hl{outline:2px solid #fff;outline-offset:1px;filter:brightness(1.08)}
+.gbar.proj-dim{opacity:.18;filter:grayscale(.8)}
+.grow.proj-row-hl{background:var(--row-hl)}
+tr.proj-row-hl td{background:var(--row-hl)}
+tr.proj-row-dim{opacity:.3}
 .gbar.bhl{outline:2.5px solid #FE7400;outline-offset:1px}
 .p-low{background:#1D9E75;color:#fff}.p-medium{background:#378ADD;color:#fff}.p-high{background:#FE7400;color:#000}.p-urgent{background:#E24B4A;color:#fff}
 
@@ -269,6 +274,11 @@ select:focus{outline:none;border-color:#FE7400}
 .pavt{width:28px;height:28px;border-radius:50%;background:#FE7400;color:#000;font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .pname{flex:1;font-size:12px;color:var(--text-primary)}
 .pei{flex:1;font-size:12px;padding:2px 5px;border:.5px solid #FE7400;border-radius:3px;background:var(--bg-input);color:var(--text-primary);outline:none}
+.pemail{flex:1.4;font-size:11px;padding:2px 6px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-surface);color:var(--text-muted);outline:none;font-style:italic}
+.pemail:focus{border-color:#FE7400;background:var(--bg-input);color:var(--text-primary);font-style:normal}
+.pemail-lbl{font-size:9px;color:var(--text-faint);white-space:nowrap}
+.mytasks-empty{padding:2.5rem 1rem;text-align:center;color:var(--text-muted);font-size:13px;line-height:1.7}
+.mytasks-badge{display:inline-block;padding:3px 10px;background:rgba(254,116,0,.12);color:#FE7400;border-radius:20px;font-size:11px;font-weight:500;border:1px solid rgba(254,116,0,.3)}
 .aprow{display:flex;gap:6px;margin-top:4px}
 .aprow input{flex:1;padding:6px 8px;font-size:12px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-input);color:var(--text-primary)}
 .aprow input:focus{outline:none;border-color:#FE7400}
@@ -412,13 +422,13 @@ select:focus{outline:none;border-color:#FE7400}
 //  ⚙️  PASTE YOUR FIREBASE CONFIG HERE
 // ============================================================
 const firebaseConfig = {
-    apiKey: "AIzaSyD-a1dqnbNaAV1O1bVCxb6xMt1mmBiDRnI",
-    authDomain: "gantt-chart-bbe7a.firebaseapp.com",
-    projectId: "gantt-chart-bbe7a",
-    storageBucket: "gantt-chart-bbe7a.firebasestorage.app",
-    messagingSenderId: "83078526539",
-    appId: "1:83078526539:web:28d11da8fa3fabe9647fce",
-    measurementId: "G-22XWEX0KYH"
+  apiKey:            "AIzaSyD-a1dqnbNaAV1O1bVCxb6xMt1mmBiDRnI",
+  authDomain:        "gantt-chart-bbe7a.firebaseapp.com",
+  projectId:         "gantt-chart-bbe7a",
+  storageBucket:     "gantt-chart-bbe7a.firebasestorage.app",
+  messagingSenderId: "83078526539",
+  appId:             "1:83078526539:web:28d11da8fa3fabe9647fce",
+  measurementId:     "G-22XWEX0KYH"
 };
 
 // Admin password (gates edit access — separate from sign-in)
@@ -455,7 +465,7 @@ let tasks       = [];
 let team        = [];
 let isAdmin     = false;
 let pinnedId    = null;
-let filt        = {priority:'',type:'',assignee:''};
+let filt        = {priority:'',type:'',assignee:'',project:''};
 let curTab      = 'master';
 let currentUser = null;
 let unsubTasks  = null;
@@ -486,6 +496,12 @@ function inits(n)    { return n.trim().split(/\s+/).map(w=>w[0]||'').join('').to
 function getProjs()  { return [...new Set(tasks.map(t=>t.project))].sort(); }
 function pcol(p)     { const ps=getProjs(); return PCOLS[ps.indexOf(p)%PCOLS.length]; }
 function teamNames() { return team.map(m=>m.name); }
+// Returns the team member name linked to the signed-in user's email, or null
+function myMemberName() {
+  if(!currentUser) return null;
+  const me = team.find(m => (m.email||'').toLowerCase().trim() === currentUser.email.toLowerCase().trim());
+  return me ? me.name : null;
+}
 function dr(tl) {
   if(!tl.length) return {min:new Date(),max:new Date(),days:30,cols:30};
   const ds=tl.flatMap(t=>[new Date(t.start),new Date(t.end)]);
@@ -502,7 +518,12 @@ function tpf(t) {
   if(filt.assignee && !(t.assignees||[]).includes(filt.assignee)) return false;
   return true;
 }
-function hasF() { return !!(filt.priority||filt.type||filt.assignee); }
+// Separate check: does this task match the project highlight filter?
+function tprojMatch(t) {
+  if(!filt.project) return null; // null = no project filter active
+  return t.project === filt.project;
+}
+function hasF() { return !!(filt.priority||filt.type||filt.assignee||filt.project); }
 
 // ── Firebase Auth: Email/Password ─────────────────────────────
 window.doSignIn = async () => {
@@ -671,7 +692,7 @@ function startListeners() {
 
 async function seedTeam() {
   const defaults = ['Adam Lillich','Harris LeBlanc','Kody Thompson','C. Wilson','A. Tibbit','Chad Santos','Justin Fritter','J. Lum'];
-  for(const name of defaults) await addDoc(collection(db,'team'),{name});
+  for(const name of defaults) await addDoc(collection(db,'team'),{name, email:''});
 }
 
 // ── CRUD ──────────────────────────────────────────────────────
@@ -697,8 +718,8 @@ window.delT = async id => {
     toast('Task deleted');
   } catch(e) { console.error(e); toast('Error deleting'); }
 };
-async function addMember(name)       { try { await addDoc(collection(db,'team'),{name}); } catch(e){console.error(e);} }
-async function updateMember(id,name) { try { await setDoc(doc(db,'team',id),{name},{merge:true}); } catch(e){console.error(e);} }
+async function addMember(name,email='') { try { await addDoc(collection(db,'team'),{name,email}); } catch(e){console.error(e);} }
+async function updateMember(id,data) { try { await setDoc(doc(db,'team',id),data,{merge:true}); } catch(e){console.error(e);} }
 async function deleteMember(id)      { try { await deleteDoc(doc(db,'team',id)); } catch(e){console.error(e);} }
 
 // ── Popup ─────────────────────────────────────────────────────
@@ -748,10 +769,23 @@ document.addEventListener('click',e=>{if(!pinnedId)return;const pp=document.getE
 
 // ── Filters ───────────────────────────────────────────────────
 window.setF    = (k,v) => { filt[k]=v; if(pinnedId)closePopup(); render(); };
-window.clearF  = () => { filt={priority:'',type:'',assignee:''}; render(); };
-function fbarHtml(tl) {
+window.clearF  = () => { filt={priority:'',type:'',assignee:'',project:''}; render(); };
+function fbarHtml(tl, showProjFilter=false) {
   const aa=[...new Set(tl.flatMap(t=>t.assignees||[]))].sort();
+  const ps=showProjFilter?[...new Set(tl.map(t=>t.project))].filter(Boolean).sort():[];
   const dot=hasF()?'<span class="fadot"></span>':'';
+  const projSel = showProjFilter ? `
+    <div class="fdiv"></div>
+    <div class="fgrp"><label class="fbl">Highlight project</label>
+      <select class="fsel" onchange="setF('project',this.value)" style="border-color:${filt.project?'#FE7400':''}">
+        <option value="">All</option>
+        ${ps.map(p=>`<option value="${p}"${filt.project===p?' selected':''}>${p}</option>`).join('')}
+      </select>
+      ${filt.project?`<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#FE7400">
+        <span style="width:8px;height:8px;border-radius:50%;background:${pcol(filt.project)};display:inline-block"></span>
+        ${filt.project}
+      </span>`:''}
+    </div>` : '';
   return `<div class="fbar">
     <span class="fbl">Filter${dot}</span><div class="fdiv"></div>
     <div class="fgrp"><label class="fbl">Priority</label>
@@ -763,6 +797,7 @@ function fbarHtml(tl) {
     <div class="fgrp"><label class="fbl">Assigned</label>
       <select class="fsel" onchange="setF('assignee',this.value)"><option value="">All</option>${aa.map(a=>`<option value="${a}"${filt.assignee===a?' selected':''}>${a}</option>`).join('')}</select>
     </div>
+    ${projSel}
     ${hasF()?`<button class="fclear" onclick="clearF()">Clear</button>`:''}
   </div>`;
 }
@@ -778,10 +813,14 @@ function ganttHtml(tl) {
     const L=Math.max(0,(ts-min)/tot*100),R=Math.max(0,(max-te)/tot*100),W=Math.max(2,100-L-R);
     const tc=t.types&&t.types[0]?TCOL[t.types[0]]:null;
     const passes=tpf(t);
-    return `<div class="grow${pinnedId===t.id?' rhl':''}" data-id="${t.id}">
+    const projMatch=tprojMatch(t); // null=no filter, true=match, false=no match
+    // Project highlight: matching rows glow, non-matching rows fade out
+    const projBarCls = projMatch===true?' proj-hl':projMatch===false?' proj-dim':'';
+    const projRowCls = projMatch===true?' proj-row-hl':projMatch===false?' proj-row-dim':'';
+    return `<div class="grow${pinnedId===t.id?' rhl':''}${projRowCls}" data-id="${t.id}">
       <div class="gtlbl" title="${t.name}">${t.name}</div>
       <div class="gtrack">
-        <div class="gbar p-${t.priority}${!passes?' bdim':''}${pinnedId===t.id?' bhl':''}" data-id="${t.id}"
+        <div class="gbar p-${t.priority}${!passes?' bdim':''}${pinnedId===t.id?' bhl':''}${projBarCls}" data-id="${t.id}"
           style="left:${L.toFixed(1)}%;width:${W.toFixed(1)}%;${tc&&passes?'border-left:3px solid '+tc:''}"
           onmouseenter="onBE(event,'${t.id}',this)" onmouseleave="onBL()" onclick="onBC(event,'${t.id}',this)"
         >${t.name}</div>
@@ -875,7 +914,9 @@ function tblHtml(tl,showProj) {
   const lk=!isAdmin;
   const rows=tl.map((t,i)=>{
     const passes=tpf(t),hl=pinnedId===t.id;
-    return `<tr data-id="${t.id}" class="${hl?'thl':(!passes?'tdim':'')}">
+    const projMatch=tprojMatch(t);
+    const projTrCls = projMatch===true?' proj-row-hl':projMatch===false?' proj-row-dim':'';
+    return `<tr data-id="${t.id}" class="${hl?'thl':(!passes?'tdim':'')}${projTrCls}">
       <td class="tnum">${i+1}</td>
       <td><input type="text" value="${t.name||''}" style="min-width:95px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','name',this.value)`}"></td>
       ${showProj?`<td><input type="text" value="${t.project||''}" style="min-width:70px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','project',this.value)`}"></td>`:''}
@@ -930,7 +971,34 @@ function render() {
   </div>`;
   document.getElementById('tabbar').innerHTML=tabs;
 
-  let html=`<div class="gpage${curTab==='master'?' active':''}" id="pg-master">
+  // ── My Tasks page ──────────────────────────────────────────
+  let myTasksPage = '';
+  if(!myName) {
+    myTasksPage = `<div class="mytasks-empty">
+      <div style="font-size:28px;margin-bottom:12px">&#128100;</div>
+      <strong style="color:var(--text-primary)">No account linked</strong><br>
+      Ask an admin to set your login email in <strong>Manage People</strong>.<br>
+      <span style="font-size:11px;color:var(--text-faint);margin-top:6px;display:block">Signed in as: ${currentUser?.email||'unknown'}</span>
+    </div>`;
+  } else if(myTasks.length === 0) {
+    myTasksPage = `<div class="mytasks-empty">
+      <div style="font-size:28px;margin-bottom:12px">&#9989;</div>
+      <strong style="color:var(--text-primary)">No tasks assigned to you</strong><br>
+      Tasks assigned to <span class="mytasks-badge">${myName}</span> will appear here.
+    </div>`;
+  } else {
+    myTasksPage = `${fbarHtml(myTasks,true)}${legend()}${ganttHtml(myTasks)}${tblHtml(myTasks,true)}`;
+  }
+
+  let html=`<div class="gpage${curTab==='mytasks'?' active':''}" id="pg-mytasks">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span style="width:4px;height:19px;background:#FE7400;border-radius:2px;display:inline-block"></span>
+      <span style="font-size:14px;font-weight:500;color:var(--text-primary)">My Tasks</span>
+      ${myName?`<span class="mytasks-badge">${myName}</span>`:''}
+    </div>
+    ${myTasksPage}
+  </div>`;
+  html+=`<div class="gpage${curTab==='master'?' active':''}" id="pg-master">
     <div style="margin-bottom:14px"><span class="stit">All projects &#8212; ${tasks.length} task${tasks.length!==1?'s':''}</span></div>
     ${fbarHtml(tasks)}${legend()}${ganttHtml(tasks)}${tblHtml(tasks,true)}</div>`;
   ps.forEach(p=>{
@@ -946,27 +1014,43 @@ function render() {
   document.getElementById('pages').innerHTML=html;
   document.addEventListener('click',closeMs,{once:true});
 }
-window.setTab = p => { closePopup(); curTab=p; render(); };
+window.setTab = p => {
+  closePopup();
+  curTab=p;
+  // Project highlight filter only makes sense on All Projects / My Tasks tabs
+  if(p !== 'master' && p !== 'mytasks') filt.project = '';
+  render();
+};
 
 // ── People manager ────────────────────────────────────────────
 window.closePM = () => { setMC(''); render(); };
 window.openPM = () => { if(!isAdmin){needAdmin();return;} setMC(buildPM()); };
-function buildPM() {
-  const rows=team.map((m,i)=>`<div class="prow" id="pr-${i}">
-    <div class="pavt">${inits(m.name)}</div><span class="pname" id="pn-${i}">${m.name}</span>
+function memberRow(m,i){
+  const emailVal=(m.email||'').replace(/"/g,'&quot;');
+  return `<div class="prow" id="pr-${i}" style="flex-wrap:wrap;gap:5px;align-items:center">
+    <div class="pavt">${inits(m.name)}</div>
+    <span class="pname" id="pn-${i}" style="min-width:100px">${m.name}</span>
+    <span class="pemail-lbl">Login email:</span>
+    <input class="pemail" id="pe-${i}" type="email" value="${emailVal}" placeholder="user@envoltz.com"
+      title="Firebase login email for this person — enables My Tasks tab"
+      onblur="saveEmail(${i},this.value)"
+      onkeydown="if(event.key==='Enter')this.blur()">
     <button class="dbtn" onclick="editP(${i})" style="font-size:12px;opacity:.6">&#9998;</button>
     <button class="dbtn" onclick="delP(${i})">&#x2715;</button>
-  </div>`).join('');
-  return `<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox" style="width:430px">
+  </div>`;
+}
+function buildPM() {
+  const rows=team.map((m,i)=>memberRow(m,i)).join('');
+  return `<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox" style="width:500px">
     <div class="mhdr"><div class="obar"></div><h3>Manage team members</h3></div>
-    <p class="spnote">Stored in Firestore. Changes are shared with all users in real time.</p>
+    <p class="spnote">Set each person\'s <strong>Login email</strong> to link their Firebase account to the "My Tasks" tab. Changes are saved instantly for all users.</p>
     <div class="plist" id="plist">${rows}</div>
-    <div class="aprow"><input type="text" id="npi" placeholder="Full name" onkeydown="if(event.key==='Enter')addP()"><button class="badd" onclick="addP()">+ Add</button></div>
+    <div class="aprow"><input type="text" id="npi" placeholder="Full name" onkeydown="if(event.key===\'Enter\')addP()"><button class="badd" onclick="addP()">+ Add</button></div>
     <div class="mact" style="margin-top:1.1rem"><button class="bprim" onclick="closePM()">Done</button></div>
   </div></div>`;
 }
 function rebuildPList() {
-  document.getElementById('plist').innerHTML=team.map((m,i)=>`<div class="prow" id="pr-${i}"><div class="pavt">${inits(m.name)}</div><span class="pname" id="pn-${i}">${m.name}</span><button class="dbtn" onclick="editP(${i})" style="font-size:12px;opacity:.6">&#9998;</button><button class="dbtn" onclick="delP(${i})">&#x2715;</button></div>`).join('');
+  document.getElementById('plist').innerHTML=team.map((m,i)=>memberRow(m,i)).join('');
 }
 window.addP = async () => {
   const inp = document.getElementById('npi');
@@ -1003,7 +1087,13 @@ window.saveP = async i => {
   const av=document.querySelector(`#pr-${i} .pavt`); if(av)av.textContent=inits(nv);
   const affected=tasks.filter(t=>(t.assignees||[]).includes(old));
   for(const t of affected) await updateTask(t.id,{assignees:t.assignees.map(a=>a===old?nv:a)});
-  await updateMember(id,nv);
+  await updateMember(id,{name:nv});
+};
+// Save email linkage for a team member
+window.saveEmail = async (i, email) => {
+  const id = team[i].id;
+  team[i].email = email.trim();
+  await updateMember(id, {email: email.trim()});
 };
 window.cancelP = (i,o) => {
   const inp=document.getElementById(`pn-${i}`); if(inp)inp.outerHTML=`<span class="pname" id="pn-${i}">${o}</span>`;
