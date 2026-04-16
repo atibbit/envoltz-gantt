@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -232,6 +232,20 @@ select:focus{outline:none;border-color:#FE7400}
 .badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:500;white-space:nowrap}
 .badge-low{background:#E1F5EE;color:#0F6E56}.badge-medium{background:#E6F1FB;color:#185FA5}.badge-high{background:#FFF0E0;color:#994500}.badge-urgent{background:#FCEBEB;color:#A32D2D}
 .badge-eng{background:#EEEDFE;color:#3C3489}.badge-prod{background:#E1F5EE;color:#0F6E56}.badge-proc{background:#FAEEDA;color:#854F0B}
+.badge-ns{background:#f0f0ee;color:#888;border:1px solid #ddd}
+.badge-ip{background:#E6F1FB;color:#185FA5;border:1px solid #b8d4f5}
+.badge-cp{background:#E1F5EE;color:#0F6E56;border:1px solid #a8dfc8}
+.gbar.completed{opacity:.28;filter:grayscale(.9)}
+.trow-completed td{opacity:.45}
+.trow-completed td input,.trow-completed td select{color:var(--text-faint)}
+.completed-sdiv{margin:1.5rem 0 .75rem;padding-bottom:.5rem;border-bottom:1.5px solid #888}
+.completed-stit{font-size:12px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.08em}
+.status-sel{font-size:11px;padding:3px 5px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-input);color:var(--text-primary);cursor:pointer;min-width:98px}
+.status-sel:disabled{background:var(--bg-surface);color:var(--text-muted);cursor:default}
+.status-sel:focus{outline:none;border-color:#FE7400}
+.status-sel.s-ns{border-color:#ccc;color:#888}
+.status-sel.s-ip{border-color:#b8d4f5;color:#185FA5;background:rgba(55,138,221,.06)}
+.status-sel.s-cp{border-color:#a8dfc8;color:#0F6E56;background:rgba(29,158,117,.06)}
 .dbtn{background:none;border:none;cursor:pointer;color:var(--text-faint);font-size:13px;padding:0 3px}.dbtn:hover{color:#E24B4A}
 
 /* ── Multi-select ── */
@@ -440,9 +454,10 @@ const RECAPTCHA_SITE_KEY = "6LcG37osAAAAAGAdIml2LQFf1AUqbS50gpbzkfOf";
 // granted admin privileges on sign-in — no password prompt needed.
 // Add or remove emails freely. Comparison is case-insensitive.
 const ADMIN_EMAILS = [
-    "atibbit@envoltz.com",
-    "alillich@envoltz.com",
-    "hleblanc@envoltz.com",// ← replace with real admin email(s)
+  "hleblanc@envoltz.com",
+  "cwilson@envoltz.com",
+  "alillich@envoltz.com",
+  "atibbit@envoltz.com",
 ];
 
 // Manual admin password fallback (for users not in ADMIN_EMAILS)
@@ -486,7 +501,13 @@ if (RECAPTCHA_SITE_KEY !== "YOUR_RECAPTCHA_SITE_KEY") {
 }
 
 // ── Constants ─────────────────────────────────────────────────
-const PRIOS  = ['low','medium','high','urgent'];
+const PRIOS    = ['low','medium','high','urgent'];
+const STATUSES = [
+  {val:'not_started', label:'Not Started',  cls:'s-ns', badge:'badge-ns'},
+  {val:'in_progress', label:'In Progress',  cls:'s-ip', badge:'badge-ip'},
+  {val:'completed',   label:'Completed',    cls:'s-cp', badge:'badge-cp'},
+];
+function statusObj(v) { return STATUSES.find(s=>s.val===v) || STATUSES[0]; }
 const TTYPES = ['Engineering','Production','Procurement'];
 const PCOLS  = ['#FE7400','#1D9E75','#378ADD','#E24B4A','#534AB7','#0F6E56'];
 const TBADGE = {Engineering:'badge-eng',Production:'badge-prod',Procurement:'badge-proc'};
@@ -506,7 +527,7 @@ function isAutoAdmin(user) {
                      .includes(user.email.toLowerCase().trim());
 }
 let pinnedId    = null;
-let filt        = {priority:'',type:'',assignee:'',project:''};
+let filt        = {priority:'',type:'',assignee:'',project:'',status:''};
 let curTab      = 'master';
 let currentUser = null;
 let unsubTasks  = null;
@@ -516,6 +537,7 @@ let unsubTeam   = null;
 window.toggleTheme = d => {
   document.getElementById('app-wrap').setAttribute('data-theme', d ? 'dark' : '');
   document.getElementById('theme-lbl').textContent = d ? 'Dark' : 'Light';
+  try { localStorage.setItem('ev-gantt-theme', d ? 'dark' : 'light'); } catch(e) {}
 };
 function setMC(h)    { document.getElementById('mc').innerHTML = h; }
 window.setMC = setMC;
@@ -564,6 +586,7 @@ function tpf(t) {
   if(filt.priority && t.priority!==filt.priority) return false;
   if(filt.type     && !(t.types||[]).includes(filt.type)) return false;
   if(filt.assignee && !(t.assignees||[]).includes(filt.assignee)) return false;
+  if(filt.status   && (t.status||'not_started')!==filt.status) return false;
   return true;
 }
 // Separate check: does this task match the project highlight filter?
@@ -571,7 +594,7 @@ function tprojMatch(t) {
   if(!filt.project) return null; // null = no project filter active
   return t.project === filt.project;
 }
-function hasF() { return !!(filt.priority||filt.type||filt.assignee||filt.project); }
+function hasF() { return !!(filt.priority||filt.type||filt.assignee||filt.project||filt.status); }
 
 // ── Firebase Auth: Email/Password ─────────────────────────────
 window.doSignIn = async () => {
@@ -829,6 +852,7 @@ function pphtml(t) {
 <div class="pprow"><span class="pplbl">Assigned</span><span class="ppval" style="display:flex;flex-wrap:wrap;gap:3px">${ah||'<span style="color:var(--text-faint)">&#8212;</span>'}</span></div>
 <div class="pprow"><span class="pplbl">Start</span><span class="ppval">${fd(t.start)}</span></div>
 <div class="pprow"><span class="pplbl">Due</span><span class="ppval">${fd(t.end)}</span></div>
+<div class="pprow"><span class="pplbl">Status</span><span class="ppval"><span class="pbdg ${statusObj(t.status||'not_started').badge}">${statusObj(t.status||'not_started').label}</span></span></div>
 <div class="pprow" style="margin-top:4px;padding-top:4px;border-top:.5px solid var(--border-soft)">
   <span class="pplbl">Added by</span><span class="ppval" style="color:var(--text-muted);font-size:10px">${t.createdBy||'&#8212;'}</span>
 </div>`;
@@ -865,7 +889,7 @@ document.addEventListener('click',e=>{if(!pinnedId)return;const pp=document.getE
 
 // ── Filters ───────────────────────────────────────────────────
 window.setF    = (k,v) => { filt[k]=v; if(pinnedId)closePopup(); render(); };
-window.clearF  = () => { filt={priority:'',type:'',assignee:'',project:''}; render(); };
+window.clearF  = () => { filt={priority:'',type:'',assignee:'',project:'',status:''}; render(); };
 function fbarHtml(tl, showProjFilter=false) {
   const aa=[...new Set(tl.flatMap(t=>t.assignees||[]))].sort();
   const ps=showProjFilter?[...new Set(tl.map(t=>t.project))].filter(Boolean).sort():[];
@@ -894,6 +918,12 @@ function fbarHtml(tl, showProjFilter=false) {
       <select class="fsel" onchange="setF('assignee',this.value)"><option value="">All</option>${aa.map(a=>`<option value="${a}"${filt.assignee===a?' selected':''}>${a}</option>`).join('')}</select>
     </div>
     ${projSel}
+    <div class="fgrp"><label class="fbl">Status</label>
+      <select class="fsel" onchange="setF('status',this.value)">
+        <option value="">All</option>
+        ${STATUSES.map(s=>`<option value="${s.val}"${filt.status===s.val?' selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </div>
     ${hasF()?`<button class="fclear" onclick="clearF()">Clear</button>`:''}
   </div>`;
 }
@@ -916,7 +946,7 @@ function ganttHtml(tl) {
     return `<div class="grow${pinnedId===t.id?' rhl':''}${projRowCls}" data-id="${t.id}">
       <div class="gtlbl" title="${t.name}">${t.name}</div>
       <div class="gtrack">
-        <div class="gbar p-${t.priority}${!passes?' bdim':''}${pinnedId===t.id?' bhl':''}${projBarCls}" data-id="${t.id}"
+        <div class="gbar p-${t.priority}${!passes?' bdim':''}${pinnedId===t.id?' bhl':''}${projBarCls}${(t.status||'not_started')==='completed'?' completed':''}" data-id="${t.id}"
           style="left:${L.toFixed(1)}%;width:${W.toFixed(1)}%;${tc&&passes?'border-left:3px solid '+tc:''}"
           onmouseenter="onBE(event,'${t.id}',this)" onmouseleave="onBL()" onclick="onBC(event,'${t.id}',this)"
         >${t.name}</div>
@@ -1005,39 +1035,67 @@ window.msRm=function(e,uid,tid,field,val){
 };
 
 // ── Table ─────────────────────────────────────────────────────
-function tblHtml(tl,showProj) {
+function makeRow(t, i, showProj, lk) {
+  const passes=tpf(t), hl=pinnedId===t.id;
+  const projMatch=tprojMatch(t);
+  const projTrCls = projMatch===true?' proj-row-hl':projMatch===false?' proj-row-dim':'';
+  const isComp = (t.status||'not_started')==='completed';
+  const so = statusObj(t.status||'not_started');
+  return `<tr data-id="${t.id}" class="${hl?'thl':(!passes?'tdim':'')}${projTrCls}${isComp?' trow-completed':''}">
+    <td class="tnum">${i+1}</td>
+    <td><input type="text" value="${t.name||''}" style="min-width:95px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','name',this.value)`}"></td>
+    ${showProj?`<td><input type="text" value="${t.project||''}" style="min-width:70px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','project',this.value)`}"></td>`:''}
+    <td>${msHtml(t.id,'types',TTYPES,t.types||[],tpc,lk)}</td>
+    <td>${msHtml(t.id,'assignees',teamNames(),t.assignees||[],apc,lk)}</td>
+    <td><input type="date" value="${t.start||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','start',this.value)`}"></td>
+    <td><input type="date" value="${t.end||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','end',this.value)`}"></td>
+    <td><select ${lk?'disabled':''} onchange="${lk?'':` utF('${t.id}','priority',this.value)`}">
+      ${PRIOS.map(p=>`<option value="${p}"${p===t.priority?' selected':''}}>${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}
+    </select></td>
+    <td><select class="status-sel ${so.cls}" ${lk?'disabled':''} onchange="${lk?'':` utF('${t.id}','status',this.value)`}">
+      ${STATUSES.map(s=>`<option value="${s.val}"${(t.status||'not_started')===s.val?' selected':''}}>${s.label}</option>`).join('')}
+    </select></td>
+    <td><button class="dbtn" onclick="${lk?'needAdmin()':` delT('${t.id}')`}" title="${lk?'Admin required':'Delete'}">&#x2715;</button></td>
+  </tr>`;
+}
+function tblHtml(tl, showProj) {
   if(!tl.length) return '';
-  const lk=!isAdmin;
-  const rows=tl.map((t,i)=>{
-    const passes=tpf(t),hl=pinnedId===t.id;
-    const projMatch=tprojMatch(t);
-    const projTrCls = projMatch===true?' proj-row-hl':projMatch===false?' proj-row-dim':'';
-    return `<tr data-id="${t.id}" class="${hl?'thl':(!passes?'tdim':'')}${projTrCls}">
-      <td class="tnum">${i+1}</td>
-      <td><input type="text" value="${t.name||''}" style="min-width:95px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','name',this.value)`}"></td>
-      ${showProj?`<td><input type="text" value="${t.project||''}" style="min-width:70px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','project',this.value)`}"></td>`:''}
-      <td>${msHtml(t.id,'types',TTYPES,t.types||[],tpc,lk)}</td>
-      <td>${msHtml(t.id,'assignees',teamNames(),t.assignees||[],apc,lk)}</td>
-      <td><input type="date" value="${t.start||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','start',this.value)`}"></td>
-      <td><input type="date" value="${t.end||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','end',this.value)`}"></td>
-      <td><select ${lk?'disabled':''} onchange="${lk?'':` utF('${t.id}','priority',this.value)`}">
-        ${PRIOS.map(p=>`<option value="${p}"${p===t.priority?' selected':''}>${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}
-      </select></td>
-      <td><span class="badge badge-${t.priority||'low'}">${(t.priority||'low')[0].toUpperCase()+(t.priority||'low').slice(1)}</span></td>
-      <td><button class="dbtn" onclick="${lk?'needAdmin()':` delT('${t.id}')`}" title="${lk?'Admin required':'Delete'}">&#x2715;</button></td>
-    </tr>`;
-  }).join('');
-  const vn=lk?`<div class="vonote">&#128274; View-only &#8212; <span style="color:#FE7400;cursor:pointer;text-decoration:underline" onclick="openAdminLogin()">Admin login</span> to edit</div>`:'';
-  return `<div class="sdiv"><span class="stit">Task list</span></div>
-  ${vn}<div style="overflow-x:auto"><table>
-    <thead><tr><th>#</th><th>Task</th>${showProj?'<th>Project</th>':''}<th>Type</th><th>Assigned</th><th>Start</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
+  const lk = !isAdmin;
+  const active    = tl.filter(t=>(t.status||'not_started')!=='completed');
+  const completed = tl.filter(t=>(t.status||'not_started')==='completed');
+  const thead = `<thead><tr><th>#</th><th>Task</th>${showProj?'<th>Project</th>':''}<th>Type</th><th>Assigned</th><th>Start</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead>`;
+  const vn = lk?`<div class="vonote">&#128274; View-only &#8212; <span style="color:#FE7400;cursor:pointer;text-decoration:underline" onclick="openAdminLogin()">Admin login</span> to edit</div>`:'';
+  let out = `<div class="sdiv"><span class="stit">Active tasks (${active.length})</span></div>${vn}`;
+  if(active.length) {
+    out += `<div style="overflow-x:auto"><table>${thead}<tbody>${active.map((t,i)=>makeRow(t,i,showProj,lk)).join('')}</tbody></table></div>`;
+  } else {
+    out += '<div class="empty" style="padding:1rem">No active tasks.</div>';
+  }
+  if(completed.length) {
+    out += `<div class="completed-sdiv" style="margin-top:1.5rem"><span class="completed-stit">&#x2713; Completed (${completed.length})</span></div>`;
+    out += `<div style="overflow-x:auto"><table>${thead}<tbody>${completed.map((t,i)=>makeRow(t,i,showProj,lk)).join('')}</tbody></table></div>`;
+  }
+  return out;
 }
 window.utF = (id,f,v) => {
   if(!isAdmin)return;
   const t=tasks.find(t=>t.id===id);
-  if(t){t[f]=v; updateTask(id,{[f]:v});}
+  if(!t) return;
+  t[f]=v;
+  updateTask(id,{[f]:v});
+  // If status changed, update the select's color class live without full re-render
+  if(f==='status') {
+    const so=statusObj(v);
+    document.querySelectorAll(`tr[data-id="${id}"] .status-sel`).forEach(sel=>{
+      sel.className=`status-sel ${so.cls}`;
+    });
+    // Also update the gantt bar's completed class
+    document.querySelectorAll(`.gbar[data-id="${id}"]`).forEach(bar=>{
+      bar.classList.toggle('completed', v==='completed');
+    });
+    // Move row between active/completed sections without full re-render
+    render();
+  }
 };
 window.needAdmin = () => {
   setMC(`<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox mbox-sm">
@@ -1226,6 +1284,7 @@ window.openAdd = () => {
     <div class="mf"><label>Start date</label><input type="date" id="fsd" value="${today}" onchange="syncDueDate(this.value)"></div>
     <div class="mf"><label>Due date</label><input type="date" id="fed" value="${today}"></div>
     <div class="mf"><label>Priority</label><select id="fpr">${PRIOS.map(p=>`<option value="${p}">${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select></div>
+    <div class="mf"><label>Status</label><select id="fst">${STATUSES.map(s=>`<option value="${s.val}">${s.label}</option>`).join('')}</select></div>
     <div class="mact"><button class="bcanc" onclick="closeAdd()">Cancel</button><button class="bprim" onclick="subTask()">Add task</button></div>
   </div></div>`);
 };
@@ -1234,15 +1293,28 @@ window.subTask = async () => {
   const name=document.getElementById('fn').value.trim(), proj=document.getElementById('fp').value.trim();
   const start=document.getElementById('fsd').value, end=document.getElementById('fed').value;
   const priority=document.getElementById('fpr').value;
+  const status=document.getElementById('fst').value||'not_started';
   const types=[...document.querySelectorAll('input[name=ft]:checked')].map(c=>c.value);
   const assignees=[...document.querySelectorAll('input[name=fa]:checked')].map(c=>c.value);
   if(!name||!proj||!start||!end){alert('Please fill in all required fields.');return;}
   if(end<start){alert('Due date must be on or after start date.');return;}
   setMC(''); curTab=proj;
-  await addTask({name,project:proj,start,end,priority,types,assignees});
+  await addTask({name,project:proj,start,end,priority,status,types,assignees});
 };
 
 // ── Boot ──────────────────────────────────────────────────────
+// Restore saved theme immediately so there's no flash of wrong theme on load
+(function() {
+  try {
+    const saved = localStorage.getItem('ev-gantt-theme');
+    if(saved === 'dark') {
+      document.getElementById('app-wrap').setAttribute('data-theme', 'dark');
+      document.getElementById('theme-lbl').textContent = 'Dark';
+      const tog = document.getElementById('theme-tog');
+      if(tog) tog.checked = true;
+    }
+  } catch(e) {}
+})();
 showLoad('Checking sign-in status...');
 </script>
 </body>
