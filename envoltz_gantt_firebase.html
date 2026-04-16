@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Envoltz Gantt Dashboard v1.0.0</title>
+
+<!--
+================================================================================
+  ENVOLTZ GANTT DASHBOARD — Firebase + Google Sign-In
+  Hosted on Vercel | Data stored in Firestore (real-time)
+================================================================================
+
+  SETUP INSTRUCTIONS (~15 minutes total)
+  ───────────────────────────────────────
+
+  PART 1 — CREATE FIREBASE PROJECT (5 min)
+  ─────────────────────────────────────────
+  1. Go to https://console.firebase.google.com
+  2. Click "Add project" → name it "envoltz-gantt" → Continue
+  3. Disable Google Analytics (not needed) → Create project
+
+  PART 2 — ENABLE GOOGLE SIGN-IN (2 min)
+  ────────────────────────────────────────
+  1. In Firebase console → Authentication → Get started
+  2. Sign-in method → Google → Enable → enter support email → Save
+  3. Under "Authorized domains" tab → Add your Vercel URL once deployed
+     (e.g. envoltz-gantt.vercel.app)
+
+  PART 3 — CREATE FIRESTORE DATABASE (2 min)
+  ────────────────────────────────────────────
+  1. Firebase console → Firestore Database → Create database
+  2. Choose "Start in production mode" → select your region → Enable
+  3. Go to Rules tab → replace the rules with:
+
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         // Only signed-in @envoltz.com users can read
+         match /tasks/{taskId} {
+           allow read: if request.auth != null
+                       && request.auth.token.email.matches('.*@envoltz\\.com');
+           allow write: if request.auth != null
+                        && request.auth.token.email.matches('.*@envoltz\\.com');
+         }
+         match /team/{memberId} {
+           allow read: if request.auth != null
+                       && request.auth.token.email.matches('.*@envoltz\\.com');
+           allow write: if request.auth != null
+                        && request.auth.token.email.matches('.*@envoltz\\.com');
+         }
+       }
+     }
+
+  4. Publish the rules
+
+  PART 4 — GET YOUR FIREBASE CONFIG (2 min)
+  ───────────────────────────────────────────
+  1. Firebase console → Project settings (gear icon) → General
+  2. Scroll down to "Your apps" → click </> (Web) → register app
+     App nickname: "Envoltz Gantt" → Register app
+  3. Copy the firebaseConfig object values into the CONFIG block below
+
+  PART 5 — DEPLOY TO VERCEL (4 min)
+  ───────────────────────────────────
+  1. Rename this file to: index.html
+  2. Create a GitHub repo (github.com → New repository → "envoltz-gantt")
+  3. Upload index.html to the repo
+  4. Go to vercel.com → Add New Project → import the GitHub repo → Deploy
+  5. Copy your Vercel URL (e.g. https://envoltz-gantt.vercel.app)
+  6. Back in Firebase → Authentication → Settings → Authorized domains
+     → Add domain → paste your Vercel URL (without https://)
+
+  THAT'S IT — the app is live! Any change one user makes appears
+  instantly for all other users. No polling. True real-time.
+
+================================================================================
+-->
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-page:#f0f0ee;--bg-card:#ffffff;--bg-surface:#fafaf8;--bg-input:#ffffff;
+  --border-main:#d8d7d3;--border-soft:#e8e7e4;--border-input:#d0d0cc;
+  --text-primary:#1a1a1a;--text-secondary:#555;--text-muted:#888;--text-faint:#aaa;
+  --row-hover:#f5f5f2;--row-hl:#fff8f0;--row-dim:.3;
+  --filter-bg:#fafaf8;--notice-bg:#f8f8f6;--person-row:#f8f8f6;
+  --footer-bg:#111111;--footer-text:#777;--footer-accent:#FE7400;
+  --shadow:0 6px 20px rgba(0,0,0,.12);
+}
+[data-theme="dark"]{
+  --bg-page:#111112;--bg-card:#1c1c1e;--bg-surface:#232325;--bg-input:#2a2a2c;
+  --border-main:#3a3a3c;--border-soft:#2c2c2e;--border-input:#3a3a3c;
+  --text-primary:#f0f0ee;--text-secondary:#b0b0ae;--text-muted:#777;--text-faint:#444;
+  --row-hover:#252527;--row-hl:#2a1f10;--row-dim:.2;
+  --filter-bg:#1c1c1e;--notice-bg:#232325;--person-row:#232325;
+  --footer-bg:#000000;--footer-text:#555;
+  --shadow:0 6px 24px rgba(0,0,0,.5);
+}
+html,body{min-height:100%;font-family:system-ui,-apple-system,sans-serif;font-size:14px;color:var(--text-primary);background:#e8e8e6}
+.app-wrap{display:flex;flex-direction:column;min-height:100vh;max-width:1400px;margin:0 auto;background:var(--bg-page)}
+
+/* ── Header ── */
+.ev-header{background:#000;padding:10px 20px;display:flex;align-items:center;gap:14px}
+.ev-hl{display:flex;align-items:center;gap:14px;flex:1}
+.hdiv{width:1px;height:28px;background:#444;flex-shrink:0}
+.htag{font-size:12px;font-weight:500;color:#aaa;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.hright{display:flex;align-items:center;gap:10px}
+.admin-badge{display:flex;align-items:center;gap:5px;font-size:11px;color:#1D9E75;background:rgba(29,158,117,.15);padding:4px 10px;border-radius:20px;font-weight:500;border:1px solid rgba(29,158,117,.3)}
+.admin-dot{width:6px;height:6px;border-radius:50%;background:#1D9E75}
+.user-chip{display:flex;align-items:center;gap:7px;font-size:11px;color:#aaa}
+.user-avatar{width:24px;height:24px;border-radius:50%;object-fit:cover;border:1px solid #444}
+.user-initials{width:24px;height:24px;border-radius:50%;background:#FE7400;color:#000;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sync-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:#666;padding:3px 9px;border:1px solid #333;border-radius:20px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0}
+.sync-dot.live{background:#1D9E75}
+.sync-dot.saving{background:#FE7400;animation:blink .6s infinite}
+.sync-dot.error{background:#E24B4A}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.hbtn{padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;background:transparent;border:1px solid #444;color:#bbb}
+.hbtn:hover{background:#222;color:#fff}
+.hbtn-out{border-color:#854F0B;color:#FE7400}.hbtn-out:hover{background:rgba(254,116,0,.1)}
+.hbtn-sm{padding:4px 10px;font-size:11px}
+
+/* ── Tabs ── */
+.topbar{display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px 0;background:#000;align-items:flex-end}
+.tab{padding:7px 16px;border:1px solid #444;border-bottom:none;border-radius:4px 4px 0 0;background:transparent;cursor:pointer;font-size:13px;color:#999}
+.tab.active{background:#FE7400;color:#000;border-color:#FE7400;font-weight:500}
+.tab:hover:not(.active){background:#222;color:#fff}
+.tbr{margin-left:auto;display:flex;gap:7px;align-items:center;padding-bottom:2px}
+.abtn{padding:6px 14px;border:1px solid #FE7400;border-radius:4px;background:transparent;cursor:pointer;font-size:12px;color:#FE7400;font-weight:500}
+.abtn:hover{background:#FE7400;color:#000}
+.mbtn{padding:6px 12px;border:1px solid #444;border-radius:4px;background:transparent;cursor:pointer;font-size:12px;color:#999}
+.mbtn:hover{background:#222;color:#fff}
+
+/* ── Content ── */
+.content{background:var(--bg-card);border-left:.5px solid var(--border-main);border-right:.5px solid var(--border-main);padding:20px;flex:1}
+.gpage{display:none}.gpage.active{display:block}
+
+/* ── Sign-in Screen ── */
+.signin-screen{background:var(--bg-card);border-left:.5px solid var(--border-main);border-right:.5px solid var(--border-main);flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:60px 20px;text-align:center}
+.signin-screen h2{font-size:20px;font-weight:500;color:var(--text-primary)}
+.signin-screen p{font-size:13px;color:var(--text-muted);max-width:380px;line-height:1.6}
+.google-btn{display:flex;align-items:center;gap:10px;padding:10px 24px;background:#fff;border:1px solid #d0d0cc;border-radius:4px;cursor:pointer;font-size:14px;font-weight:500;color:#1a1a1a;box-shadow:0 2px 6px rgba(0,0,0,.08);transition:box-shadow .15s}
+.google-btn:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
+.google-logo{width:20px;height:20px}
+.domain-note{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-faint);background:var(--notice-bg);padding:8px 14px;border-radius:20px;border:.5px solid var(--border-soft)}
+
+/* ── Loading overlay ── */
+.loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px}
+.loading-overlay.hidden{display:none}
+.spinner{width:38px;height:38px;border:3px solid #333;border-top-color:#FE7400;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:#fff;font-size:14px}
+
+/* ── Filter bar ── */
+.fbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 12px;background:var(--filter-bg);border:.5px solid var(--border-soft);border-radius:8px;margin-bottom:14px}
+.fbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;font-weight:500}
+.fsel{font-size:12px;padding:4px 7px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-input);color:var(--text-primary);cursor:pointer}
+.fsel:focus{outline:none;border-color:#FE7400}
+.fdiv{width:1px;height:18px;background:var(--border-soft)}
+.fgrp{display:flex;align-items:center;gap:5px}
+.fclear{font-size:11px;color:#FE7400;background:none;border:none;cursor:pointer;text-decoration:underline}
+.fadot{width:7px;height:7px;border-radius:50%;background:#FE7400;display:inline-block;margin-left:3px;vertical-align:middle}
+
+/* ── Gantt ── */
+.gwrap{overflow-x:auto;margin-bottom:1.5rem}
+.gant{min-width:700px;width:100%}
+.ghdr{display:flex;border-bottom:1.5px solid #FE7400;padding-bottom:5px;margin-bottom:0}
+.glbl{width:180px;min-width:180px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
+.gdates{flex:1;display:flex}
+.gdcell{font-size:10px;color:var(--text-faint);text-align:center;border-left:1px solid var(--border-soft)}
+.gbody{position:relative}
+.ggrid{position:absolute;inset:0;left:180px;display:flex;pointer-events:none;z-index:0}
+.ggcol{flex:1;border-left:1px solid var(--border-soft)}
+.ggcol:nth-child(odd){background:rgba(254,116,0,.025)}
+.ggcol:nth-child(even){background:rgba(128,128,128,.018)}
+.grow{display:flex;align-items:center;height:34px;border-bottom:.5px solid var(--border-soft);position:relative;z-index:1}
+.grow.rhl{background:var(--row-hl)}
+.grow:hover{background:var(--row-hover)}
+.gtlbl{width:180px;min-width:180px;font-size:12px;padding-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary)}
+.gtrack{flex:1;position:relative;height:22px}
+.gbar{position:absolute;height:100%;border-radius:2px;display:flex;align-items:center;padding:0 6px;font-size:10px;overflow:hidden;white-space:nowrap;font-weight:500;z-index:2;cursor:pointer;transition:opacity .18s,filter .18s}
+.gbar:hover{filter:brightness(1.12)}
+.gbar.bdim{opacity:.14;filter:grayscale(1)}
+.gbar.bhl{outline:2.5px solid #FE7400;outline-offset:1px}
+.p-low{background:#1D9E75;color:#fff}.p-medium{background:#378ADD;color:#fff}.p-high{background:#FE7400;color:#000}.p-urgent{background:#E24B4A;color:#fff}
+
+/* ── Popup ── */
+.popup{position:fixed;z-index:500;background:var(--bg-card);border:1px solid var(--border-input);border-radius:10px;padding:12px 14px;min-width:220px;max-width:270px;box-shadow:var(--shadow);pointer-events:none;display:none}
+.popup.vis{display:block}.popup.pin{pointer-events:auto;display:block}
+.pphdr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:7px}
+.pptit{font-size:13px;font-weight:500;color:var(--text-primary);line-height:1.3;flex:1}
+.ppx{background:none;border:none;cursor:pointer;color:var(--text-faint);font-size:15px;line-height:1;padding:0 2px}.ppx:hover{color:var(--text-primary)}
+.ppdiv{border:none;border-top:.5px solid var(--border-soft);margin:5px 0}
+.pprow{display:flex;gap:6px;margin-bottom:4px;align-items:flex-start;font-size:12px}
+.pplbl{color:var(--text-muted);min-width:66px;flex-shrink:0;font-size:10px;text-transform:uppercase;letter-spacing:.04em;padding-top:1px}
+.ppval{color:var(--text-primary);flex:1;line-height:1.4}
+.pbdg{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:500;margin-right:3px;margin-bottom:2px}
+.pb-low{background:#E1F5EE;color:#0F6E56}.pb-medium{background:#E6F1FB;color:#185FA5}.pb-high{background:#FFF0E0;color:#994500}.pb-urgent{background:#FCEBEB;color:#A32D2D}
+.pb-eng{background:#EEEDFE;color:#3C3489}.pb-prod{background:#E1F5EE;color:#0F6E56}.pb-proc{background:#FAEEDA;color:#854F0B}
+
+/* ── Table ── */
+.sdiv{margin:1.5rem 0 .75rem;padding-bottom:.5rem;border-bottom:1.5px solid #FE7400}
+.stit{font-size:12px;font-weight:500;color:#FE7400;text-transform:uppercase;letter-spacing:.08em}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:7px 8px;font-weight:500;border-bottom:2px solid #FE7400;color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+td{padding:5px 8px;border-bottom:.5px solid var(--border-soft);vertical-align:top;color:var(--text-primary)}
+tr.thl td{background:var(--row-hl)}
+tr.tdim{opacity:var(--row-dim)}
+input[type=text],input[type=date]{font-size:11px;padding:3px 5px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-input);color:var(--text-primary);width:100%}
+input[type=text]:read-only,input[type=date]:read-only{background:var(--bg-surface);color:var(--text-muted);cursor:default;border-color:var(--border-soft)}
+input:focus:not(:read-only){outline:none;border-color:#FE7400}
+select{font-size:11px;padding:3px 4px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-input);color:var(--text-primary)}
+select:disabled{background:var(--bg-surface);color:var(--text-muted);cursor:default}
+select:focus{outline:none;border-color:#FE7400}
+.badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:500;white-space:nowrap}
+.badge-low{background:#E1F5EE;color:#0F6E56}.badge-medium{background:#E6F1FB;color:#185FA5}.badge-high{background:#FFF0E0;color:#994500}.badge-urgent{background:#FCEBEB;color:#A32D2D}
+.badge-eng{background:#EEEDFE;color:#3C3489}.badge-prod{background:#E1F5EE;color:#0F6E56}.badge-proc{background:#FAEEDA;color:#854F0B}
+.dbtn{background:none;border:none;cursor:pointer;color:var(--text-faint);font-size:13px;padding:0 3px}.dbtn:hover{color:#E24B4A}
+
+/* ── Multi-select ── */
+.msw{position:relative}
+.msbox{min-height:26px;border:.5px solid var(--border-input);border-radius:3px;padding:2px 5px;cursor:pointer;display:flex;flex-wrap:wrap;gap:2px;align-items:center;background:var(--bg-input)}
+.msbox.lck{background:var(--bg-surface);cursor:default;border-color:var(--border-soft)}
+.msbox.open{border-color:#FE7400}
+.mspill{display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:500;white-space:nowrap}
+.mspx{cursor:pointer;opacity:.6;font-size:10px;line-height:1}.mspx:hover{opacity:1}
+.msdd{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bg-card);border:.5px solid var(--border-input);border-radius:8px;z-index:100;max-height:160px;overflow-y:auto;display:none;min-width:170px;box-shadow:var(--shadow)}
+.msdd.open{display:block}
+.msopt{padding:5px 9px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-primary)}
+.msopt:hover{background:var(--row-hover)}
+.msopt input[type=checkbox]{accent-color:#FE7400;width:12px;height:12px;flex-shrink:0}
+.msph{font-size:10px;color:var(--text-faint)}
+
+/* ── Modals ── */
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:600}
+.mbox{background:var(--bg-card);border:.5px solid var(--border-input);border-radius:12px;padding:1.5rem;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.mbox-sm{width:330px}
+.mhdr{display:flex;align-items:center;gap:10px;margin-bottom:1.1rem}
+.obar{width:4px;height:20px;background:#FE7400;border-radius:2px}
+.kbar{width:4px;height:20px;background:#555;border-radius:2px}
+.mhdr h3{font-size:14px;font-weight:500;color:var(--text-primary)}
+.mf{margin-bottom:11px}
+.mf label{display:block;font-size:10px;color:var(--text-muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+.mf input,.mf select{width:100%;padding:6px 8px;font-size:13px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-input);color:var(--text-primary)}
+.mf input:focus,.mf select:focus{outline:none;border-color:#FE7400}
+.mms{border:.5px solid var(--border-input);border-radius:3px;max-height:120px;overflow-y:auto;background:var(--bg-input)}
+.mms label{display:flex;align-items:center;gap:7px;padding:5px 8px;font-size:12px;cursor:pointer;color:var(--text-primary)}
+.mms label:hover{background:var(--row-hover)}
+.mms input[type=checkbox]{accent-color:#FE7400}
+.mact{display:flex;gap:8px;justify-content:flex-end;margin-top:.9rem}
+.bprim{padding:7px 16px;border:none;border-radius:3px;background:#FE7400;color:#000;cursor:pointer;font-size:12px;font-weight:500}.bprim:hover{background:#e56900}
+.bdark{padding:7px 16px;border:none;border-radius:3px;background:#222;color:#fff;cursor:pointer;font-size:12px;font-weight:500}.bdark:hover{background:#000}
+.bcanc{padding:7px 16px;border:.5px solid var(--border-input);border-radius:3px;background:transparent;color:var(--text-primary);cursor:pointer;font-size:12px}
+.lerr{font-size:12px;color:#A32D2D;background:#FCEBEB;padding:6px 10px;border-radius:3px;margin-bottom:9px;display:none}.lerr.show{display:block}
+.plist{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;max-height:260px;overflow-y:auto}
+.prow{display:flex;align-items:center;gap:7px;padding:6px 8px;border:.5px solid var(--border-soft);border-radius:8px;background:var(--person-row)}
+.pavt{width:28px;height:28px;border-radius:50%;background:#FE7400;color:#000;font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pname{flex:1;font-size:12px;color:var(--text-primary)}
+.pei{flex:1;font-size:12px;padding:2px 5px;border:.5px solid #FE7400;border-radius:3px;background:var(--bg-input);color:var(--text-primary);outline:none}
+.aprow{display:flex;gap:6px;margin-top:4px}
+.aprow input{flex:1;padding:6px 8px;font-size:12px;border:.5px solid var(--border-input);border-radius:3px;background:var(--bg-input);color:var(--text-primary)}
+.aprow input:focus{outline:none;border-color:#FE7400}
+.badd{padding:6px 12px;border:none;border-radius:3px;background:#FE7400;color:#000;cursor:pointer;font-size:12px;font-weight:500}
+.spnote{font-size:11px;color:var(--text-muted);margin-bottom:9px;padding:7px 9px;border:.5px solid var(--border-soft);border-radius:7px;background:var(--notice-bg);line-height:1.5}
+.vonote{font-size:11px;color:var(--text-muted);padding:6px 9px;background:var(--notice-bg);border:.5px solid var(--border-soft);border-radius:7px;margin-bottom:10px}
+.pdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.toast{position:fixed;bottom:24px;right:24px;background:#222;color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;z-index:900;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* ── Footer ── */
+.ev-footer{background:var(--footer-bg);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-top:2px solid #FE7400}
+.fl{display:flex;flex-direction:column;gap:2px}
+.fver{font-size:11px;color:var(--footer-accent);font-weight:500;letter-spacing:.04em}
+.fpub{font-size:10px;color:var(--footer-text)}
+.fupdated{font-size:10px;color:var(--footer-text)}
+.fr{display:flex;align-items:center;gap:10px}
+.tlbl{font-size:11px;color:var(--footer-text);letter-spacing:.04em;text-transform:uppercase}
+.tswitch{position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0}
+.tswitch input{opacity:0;width:0;height:0}
+.tslider{position:absolute;inset:0;background:#444;border-radius:24px;transition:background .25s}
+.tslider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .25s}
+.tswitch input:checked+.tslider{background:#FE7400}
+.tswitch input:checked+.tslider:before{transform:translateX(20px);background:#000}
+.leg-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.leg-i{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted)}
+.leg-sw{width:11px;height:11px;border-radius:2px;display:inline-block}
+.empty{padding:2rem;text-align:center;color:var(--text-faint);font-size:13px}
+.tnum{color:var(--text-faint);font-size:11px;font-weight:500;min-width:24px;text-align:right;padding-right:4px}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <span class="loading-text" id="loading-text">Loading...</span>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- Hover popup -->
+<div class="popup" id="gpopup">
+  <div class="pphdr"><span class="pptit" id="pp-t"></span><button class="ppx" onclick="closePopup()">&#x2715;</button></div>
+  <hr class="ppdiv"><div id="pp-b"></div>
+</div>
+
+<div class="app-wrap" id="app-wrap">
+
+  <!-- ── Header ── -->
+  <div class="ev-header">
+    <div class="ev-hl">
+      <!-- Envoltz Logo (uploaded SVG, tight viewBox crop) -->
+      <svg viewBox="278 180 2468 460" style="height:40px;width:auto;flex-shrink:0;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ENVOLTZ logo">
+        <title>ENVOLTZ</title>
+        <g transform="matrix(2.4799338,0,0,2.4799338,287.20802,177.8)">
+          <g transform="translate(-25.584439,-395.23483)">
+            <path fill="#ffffff" d="m 668.60948,493.89722 h -22.53456 l -92.902,65.05068 h 85.10294 z m -20.11255,7.68166 h 8.05477 l -23.1696,49.68736 h -55.84608 z m -6.50987,-20.64668 -2.42201,-7.68166 -151.87507,106.34405 H 651.42925 L 701.0183,473.25054 h -61.41299 l 2.42203,7.68166 h 46.93318 L 646.5355,571.91294 H 512.05309 Z m -29.20714,-7.68166 h -49.38897 l -81.61468,57.14721 -19.0777,22.73593 103.1144,-72.20148 h 22.60384 l -129.93396,90.98074 h -18.84653 l 42.42503,-90.98074 h 14.30532 l -33.6681,72.20148 19.0777,-22.73593 26.64819,-57.14721 h -31.25688 l -49.58905,106.34405 h 33.32633 z m -152.56388,0 H 324.60371 l -49.58905,106.34405 h 31.25687 l 36.37932,-78.01571 h 73.09859 l -36.37932,78.01571 h 31.25687 z m -54.4828,98.6624 H 391.4279 l 36.37933,-78.01572 H 337.7571 l -36.37932,78.01572 h -14.30533 l 42.42502,-90.98074 h 118.66079 z m -134.4604,-20.6467 H 40.823125 L 27.6134,579.59459 h 230.44971 z m -18.10348,20.6467 H 39.671187 L 45.716881,558.9479 H 259.21505 Z m 29.05549,-98.6624 h -96.15484 l -13.20973,28.32834 h 96.15484 z m -18.10348,20.64668 h -79.2033 l 6.04569,-12.96502 h 79.2033 z m 79.91012,-98.66239 H 113.58177 l -13.20972,28.32834 h 230.44971 z m -18.10348,20.64668 H 112.42984 l 6.04569,-12.96504 H 331.9737 Z m -148.33377,57.36903 h -60.65915 l -13.20972,28.32834 h 60.65915 z m -18.10349,20.64668 h -43.70759 l 6.04569,-12.96502 h 43.70759 z m -31.44384,-62.6524 H 96.790034 l -16.005567,34.32406 h 31.256873 z m -20.89933,26.6424 H 92.842252 l 8.841538,-18.96074 h 14.30533 z m 1.31174,15.36332 H 77.20245 L 63.992725,501.57888 H 95.249598 Z M 90.355843,493.89722 H 76.050512 l 6.045694,-12.96502 h 14.30533 z m 1.311739,15.36332 H 60.41071 l -16.005568,34.32404 h 31.256871 z m -20.899323,26.6424 H 56.462928 L 65.304466,516.9422 H 79.609795 Z M 68.72668,473.25054 H 38.794164 L 25.584439,501.57888 H 55.516955 Z M 50.623198,493.89722 H 37.642226 L 43.68792,480.9322 h 12.980973 z m 753.873842,57.36902 h -91.64965 l 36.37933,-78.0157 h -31.25688 l -49.58905,106.34405 h 122.90652 z m -124.05847,20.6467 42.42502,-90.98074 h 14.30534 l -36.37932,78.0157 h 91.64964 l -6.04569,12.96504 z M 919.8114,473.25054 H 766.17825 l -13.20972,28.32834 h 91.64964 l -36.37932,78.01571 h 31.25688 l 36.37932,-78.01571 h 30.72663 z m -154.78509,20.64668 6.0457,-12.96502 h 136.68161 l -6.04569,12.96502 H 870.9813 l -36.37933,78.01572 h -14.30534 l 36.37933,-78.01572 z m 247.34839,7.68166 13.2098,-28.32834 h -88.82156 l -13.20973,28.32834 h 32.16482 l -86.06104,49.68736 -13.20973,28.32835 H 975.9954 l 13.20973,-28.32835 h -62.89145 z m -27.98833,-7.68166 H 935.611 l 6.04571,-12.96502 h 71.86999 l -7.0903,15.20518 -108.79105,62.81052 h 79.50199 l -6.04569,12.96504 h -102.5966 l 7.0903,-15.20518 z"/>
+            <path fill="#ff7f00" d="M 79.609795,516.9422 H 65.304466 l -8.841538,18.96074 h 14.305331 z m 85.926645,-36.01 h -43.70759 l -6.04569,12.96502 h 43.70759 z m -49.54732,-42.00572 h -14.30533 l -8.841538,18.96074 H 107.14758 Z M 56.668893,480.9322 H 43.68792 l -6.045694,12.96502 h 12.980972 z"/>
+          </g>
+        </g>
+      </svg>
+      <div class="hdiv"></div>
+      <span class="htag">Project Management</span>
+    </div>
+    <div class="hright">
+      <div class="sync-pill" id="sync-pill">
+        <span class="sync-dot" id="sync-dot"></span>
+        <span id="sync-lbl">Connecting...</span>
+      </div>
+      <div id="user-area"></div>
+      <div id="admin-bar">
+        <!-- populated after sign-in -->
+      </div>
+    </div>
+  </div>
+
+  <div class="topbar" id="tabbar" style="display:none"></div>
+
+  <!-- Sign-in screen (shown before auth) -->
+  <div class="signin-screen" id="signin-screen">
+    <svg viewBox="278 180 2468 460" style="height:48px;width:auto" xmlns="http://www.w3.org/2000/svg">
+      <g transform="matrix(2.4799338,0,0,2.4799338,287.20802,177.8)">
+        <g transform="translate(-25.584439,-395.23483)">
+          <path fill="#000" d="m 668.60948,493.89722 h -22.53456 l -92.902,65.05068 h 85.10294 z m -20.11255,7.68166 h 8.05477 l -23.1696,49.68736 h -55.84608 z m -6.50987,-20.64668 -2.42201,-7.68166 -151.87507,106.34405 H 651.42925 L 701.0183,473.25054 h -61.41299 l 2.42203,7.68166 h 46.93318 L 646.5355,571.91294 H 512.05309 Z m -29.20714,-7.68166 h -49.38897 l -81.61468,57.14721 -19.0777,22.73593 103.1144,-72.20148 h 22.60384 l -129.93396,90.98074 h -18.84653 l 42.42503,-90.98074 h 14.30532 l -33.6681,72.20148 19.0777,-22.73593 26.64819,-57.14721 h -31.25688 l -49.58905,106.34405 h 33.32633 z m -152.56388,0 H 324.60371 l -49.58905,106.34405 h 31.25687 l 36.37932,-78.01571 h 73.09859 l -36.37932,78.01571 h 31.25687 z m -54.4828,98.6624 H 391.4279 l 36.37933,-78.01572 H 337.7571 l -36.37932,78.01572 h -14.30533 l 42.42502,-90.98074 h 118.66079 z m -134.4604,-20.6467 H 40.823125 L 27.6134,579.59459 h 230.44971 z m -18.10348,20.6467 H 39.671187 L 45.716881,558.9479 H 259.21505 Z m 29.05549,-98.6624 h -96.15484 l -13.20973,28.32834 h 96.15484 z m -18.10348,20.64668 h -79.2033 l 6.04569,-12.96502 h 79.2033 z m 79.91012,-98.66239 H 113.58177 l -13.20972,28.32834 h 230.44971 z m -18.10348,20.64668 H 112.42984 l 6.04569,-12.96504 H 331.9737 Z m -148.33377,57.36903 h -60.65915 l -13.20972,28.32834 h 60.65915 z m -18.10349,20.64668 h -43.70759 l 6.04569,-12.96502 h 43.70759 z m -31.44384,-62.6524 H 96.790034 l -16.005567,34.32406 h 31.256873 z m -20.89933,26.6424 H 92.842252 l 8.841538,-18.96074 h 14.30533 z m 1.31174,15.36332 H 77.20245 L 63.992725,501.57888 H 95.249598 Z M 90.355843,493.89722 H 76.050512 l 6.045694,-12.96502 h 14.30533 z m 1.311739,15.36332 H 60.41071 l -16.005568,34.32404 h 31.256871 z m -20.899323,26.6424 H 56.462928 L 65.304466,516.9422 H 79.609795 Z M 68.72668,473.25054 H 38.794164 L 25.584439,501.57888 H 55.516955 Z M 50.623198,493.89722 H 37.642226 L 43.68792,480.9322 h 12.980973 z m 753.873842,57.36902 h -91.64965 l 36.37933,-78.0157 h -31.25688 l -49.58905,106.34405 h 122.90652 z m -124.05847,20.6467 42.42502,-90.98074 h 14.30534 l -36.37932,78.0157 h 91.64964 l -6.04569,12.96504 z M 919.8114,473.25054 H 766.17825 l -13.20972,28.32834 h 91.64964 l -36.37932,78.01571 h 31.25688 l 36.37932,-78.01571 h 30.72663 z m -154.78509,20.64668 6.0457,-12.96502 h 136.68161 l -6.04569,12.96502 H 870.9813 l -36.37933,78.01572 h -14.30534 l 36.37933,-78.01572 z m 247.34839,7.68166 13.2098,-28.32834 h -88.82156 l -13.20973,28.32834 h 32.16482 l -86.06104,49.68736 -13.20973,28.32835 H 975.9954 l 13.20973,-28.32835 h -62.89145 z m -27.98833,-7.68166 H 935.611 l 6.04571,-12.96502 h 71.86999 l -7.0903,15.20518 -108.79105,62.81052 h 79.50199 l -6.04569,12.96504 h -102.5966 l 7.0903,-15.20518 z"/>
+          <path fill="#FE7400" d="M 79.609795,516.9422 H 65.304466 l -8.841538,18.96074 h 14.305331 z m 85.926645,-36.01 h -43.70759 l -6.04569,12.96502 h 43.70759 z m -49.54732,-42.00572 h -14.30533 l -8.841538,18.96074 H 107.14758 Z M 56.668893,480.9322 H 43.68792 l -6.045694,12.96502 h 12.980972 z"/>
+        </g>
+      </g>
+    </svg>
+    <h2>Envoltz Gantt Dashboard</h2>
+    <p>Sign in with your Envoltz Google account to access live project data. Changes you make are instantly visible to all team members.</p>
+    <button class="google-btn" onclick="doSignIn()">
+      <svg class="google-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div class="domain-note">&#128274; Access restricted to @envoltz.com accounts</div>
+  </div>
+
+  <!-- Main content (shown after auth) -->
+  <div class="content" id="content-area" style="display:none">
+    <div id="pages"></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="ev-footer">
+    <div class="fl">
+      <span class="fver">Envoltz Gantt Dashboard &mdash; v1.0.0</span>
+      <span class="fpub">Published: April 15, 2026</span>
+      <span class="fupdated" id="last-upd">Last updated: &mdash;</span>
+    </div>
+    <div class="fr">
+      <span class="tlbl" id="theme-lbl">Light</span>
+      <label class="tswitch" title="Toggle dark / light mode">
+        <input type="checkbox" id="theme-tog" onchange="toggleTheme(this.checked)">
+        <span class="tslider"></span>
+      </label>
+      <span style="font-size:16px">&#127769;</span>
+    </div>
+  </div>
+</div>
+<div id="mc"></div>
+
+<!-- ============================================================
+     FIREBASE SDK  (loaded from CDN)
+     ============================================================ -->
+<script type="module">
+
+// ============================================================
+//  ⚙️  PASTE YOUR FIREBASE CONFIG HERE
+//  (From Firebase console → Project settings → Your apps → Web)
+// ============================================================
+const firebaseConfig = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+
+// Only allow sign-ins from this domain
+const ALLOWED_DOMAIN = "envoltz.com";
+
+// Admin password (gates edit access — separate from Google sign-in)
+const ADMIN_USER = "Gantt";
+const ADMIN_PASS = "Edit123";
+// ============================================================
+
+import { initializeApp }               from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider,
+         signInWithPopup, signOut,
+         onAuthStateChanged }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection,
+         doc, addDoc, setDoc, deleteDoc,
+         onSnapshot, serverTimestamp,
+         query, orderBy }               from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── Init Firebase ─────────────────────────────────────────────
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ── State ─────────────────────────────────────────────────────
+const PRIOS  = ['low','medium','high','urgent'];
+const TTYPES = ['Engineering','Production','Procurement'];
+const PCOLS  = ['#FE7400','#1D9E75','#378ADD','#E24B4A','#534AB7','#0F6E56'];
+const TBADGE = {Engineering:'badge-eng',Production:'badge-prod',Procurement:'badge-proc'};
+const TCOL   = {Engineering:'#3C3489',Production:'#0F6E56',Procurement:'#854F0B'};
+const PB     = {low:'pb-low',medium:'pb-medium',high:'pb-high',urgent:'pb-urgent',Engineering:'pb-eng',Production:'pb-prod',Procurement:'pb-proc'};
+
+let tasks      = [];    // live from Firestore
+let team       = [];    // live from Firestore
+let isAdmin    = false;
+let pinnedId   = null;
+let filt       = {priority:'',type:'',assignee:''};
+let curTab     = 'master';
+let currentUser = null;
+
+// Unsubscribe handles for Firestore listeners
+let unsubTasks = null;
+let unsubTeam  = null;
+
+// ── Helpers ───────────────────────────────────────────────────
+window.toggleTheme = d => {
+  document.getElementById('app-wrap').setAttribute('data-theme', d ? 'dark' : '');
+  document.getElementById('theme-lbl').textContent = d ? 'Dark' : 'Light';
+};
+function setMC(h)  { document.getElementById('mc').innerHTML = h; }
+function showLoad(m) {
+  document.getElementById('loading-text').textContent = m;
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoad() { document.getElementById('loading-overlay').classList.add('hidden'); }
+function setSyncStatus(state, label) {
+  document.getElementById('sync-dot').className = 'sync-dot ' + (state||'');
+  document.getElementById('sync-lbl').textContent = label;
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function markUpd() {
+  const el = document.getElementById('last-upd');
+  if(el) el.textContent = 'Last updated: ' + new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+}
+function inits(n)   { return n.trim().split(/\s+/).map(w=>w[0]||'').join('').toUpperCase().slice(0,2); }
+function getProjs() { return [...new Set(tasks.map(t=>t.project))].sort(); }
+function pcol(p)    { const ps=getProjs(); return PCOLS[ps.indexOf(p)%PCOLS.length]; }
+function teamNames(){ return team.map(m=>m.name); }
+function dr(tl) {
+  if(!tl.length) return {min:new Date(),max:new Date(),days:30,cols:30};
+  const ds=tl.flatMap(t=>[new Date(t.start),new Date(t.end)]);
+  let mn=new Date(Math.min(...ds)), mx=new Date(Math.max(...ds));
+  mn.setDate(mn.getDate()-2); mx.setDate(mx.getDate()+2);
+  const days=Math.ceil((mx-mn)/864e5);
+  return {min:mn,max:mx,days,cols:Math.min(days,60)};
+}
+function fd(d) { if(typeof d==='string')d=new Date(d+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function fs(d) { if(typeof d==='string')d=new Date(d+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function tpf(t) {
+  if(filt.priority && t.priority!==filt.priority) return false;
+  if(filt.type     && !(t.types||[]).includes(filt.type)) return false;
+  if(filt.assignee && !(t.assignees||[]).includes(filt.assignee)) return false;
+  return true;
+}
+function hasF() { return !!(filt.priority||filt.type||filt.assignee); }
+
+// ── Auth ──────────────────────────────────────────────────────
+window.doSignIn = async () => {
+  try {
+    showLoad('Signing in with Google...');
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ hd: ALLOWED_DOMAIN }); // hint to show only org accounts
+    await signInWithPopup(auth, provider);
+    // onAuthStateChanged handles the rest
+  } catch(e) {
+    hideLoad();
+    if(e.code !== 'auth/popup-closed-by-user') {
+      alert('Sign-in failed: ' + (e.message || e.code));
+    }
+  }
+};
+
+window.doSignOut = async () => {
+  if(unsubTasks) unsubTasks();
+  if(unsubTeam)  unsubTeam();
+  isAdmin = false;
+  tasks = []; team = [];
+  await signOut(auth);
+};
+
+onAuthStateChanged(auth, user => {
+  if(user) {
+    // Enforce domain restriction client-side too
+    if(!user.email.endsWith('@' + ALLOWED_DOMAIN)) {
+      alert(`Access restricted to @${ALLOWED_DOMAIN} accounts. You signed in with ${user.email}.`);
+      signOut(auth);
+      hideLoad();
+      return;
+    }
+    currentUser = user;
+    showLoad('Loading project data...');
+    showApp(user);
+    startListeners();
+  } else {
+    currentUser = null;
+    hideLoad();
+    showSignIn();
+  }
+});
+
+function showSignIn() {
+  document.getElementById('signin-screen').style.display  = 'flex';
+  document.getElementById('content-area').style.display   = 'none';
+  document.getElementById('tabbar').style.display         = 'none';
+  document.getElementById('user-area').innerHTML          = '';
+  document.getElementById('admin-bar').innerHTML          = '';
+  setSyncStatus('', 'Not connected');
+}
+
+function showApp(user) {
+  document.getElementById('signin-screen').style.display  = 'none';
+  document.getElementById('content-area').style.display   = 'block';
+  document.getElementById('tabbar').style.display         = 'flex';
+
+  // User chip
+  const ua = document.getElementById('user-area');
+  ua.innerHTML = `<div class="user-chip">
+    ${user.photoURL
+      ? `<img class="user-avatar" src="${user.photoURL}" alt="avatar">`
+      : `<div class="user-initials">${inits(user.displayName||user.email)}</div>`}
+    <span>${(user.displayName||user.email).split(' ')[0]}</span>
+    <button class="hbtn hbtn-sm" onclick="doSignOut()" style="margin-left:4px">Sign out</button>
+  </div>`;
+
+  // Admin bar
+  renderAdminBar();
+}
+
+function renderAdminBar() {
+  const bar = document.getElementById('admin-bar');
+  bar.innerHTML = isAdmin
+    ? `<div class="admin-badge"><span class="admin-dot"></span>Admin</div>
+       <button class="hbtn hbtn-out" onclick="doAdminLogout()">Admin off</button>`
+    : `<button class="hbtn" onclick="openAdminLogin()">&#128274; Admin</button>`;
+}
+
+window.doAdminLogout = () => { isAdmin=false; renderAdminBar(); render(); };
+window.openAdminLogin = () => {
+  setMC(`<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox mbox-sm">
+    <div class="mhdr"><div class="kbar"></div><h3>Admin login</h3></div>
+    <div class="lerr" id="lerr">Incorrect username or password.</div>
+    <div class="mf"><label>Username</label><input type="text" id="lu" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('lp').focus()"></div>
+    <div class="mf"><label>Password</label><input type="password" id="lp" autocomplete="off" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
+    <div class="mact"><button class="bcanc" onclick="setMC('')">Cancel</button><button class="bdark" onclick="doAdminLogin()">Login</button></div>
+  </div></div>`);
+  setTimeout(()=>{const u=document.getElementById('lu');if(u)u.focus();},40);
+};
+window.doAdminLogin = () => {
+  const u=document.getElementById('lu').value.trim(), p=document.getElementById('lp').value;
+  if(u===ADMIN_USER && p===ADMIN_PASS) { setMC(''); isAdmin=true; renderAdminBar(); render(); }
+  else { const e=document.getElementById('lerr'); if(e)e.classList.add('show'); const lp=document.getElementById('lp'); if(lp){lp.value='';lp.focus();} }
+};
+window.bgcl = e => { if(e.target.id==='mbg') setMC(''); };
+
+// ── Firestore real-time listeners ────────────────────────────
+// Firestore onSnapshot fires instantly on every change from ANY user.
+// No polling needed — true push-based real-time sync.
+function startListeners() {
+  // Tasks — ordered by creation time
+  const tasksQ = query(collection(db,'tasks'), orderBy('createdAt','asc'));
+  unsubTasks = onSnapshot(tasksQ, snap => {
+    tasks = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    markUpd();
+    render();
+    setSyncStatus('live','Live');
+    hideLoad();
+  }, err => {
+    console.error('Tasks listener error:', err);
+    setSyncStatus('error','Sync error');
+    hideLoad();
+  });
+
+  // Team members
+  const teamQ = query(collection(db,'team'), orderBy('name','asc'));
+  unsubTeam = onSnapshot(teamQ, snap => {
+    team = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    // Seed defaults if empty
+    if(team.length === 0 && isAdmin) seedDefaultTeam();
+    render();
+  }, err => console.error('Team listener error:', err));
+}
+
+async function seedDefaultTeam() {
+  const defaults=['Adam Lillich','Harris LeBlanc','Kody Thompson','C. Wilson','A. Tibbit','Chad Santos','Justin Fritter','J. Lum'];
+  for(const name of defaults) await addDoc(collection(db,'team'),{name});
+}
+
+// ── CRUD ──────────────────────────────────────────────────────
+async function addTask(data) {
+  setSyncStatus('saving','Saving...');
+  try {
+    await addDoc(collection(db,'tasks'), {...data, createdAt:serverTimestamp(), createdBy: currentUser?.email||''});
+    toast('Task added');
+  } catch(e) { console.error(e); toast('Error saving task'); setSyncStatus('error','Save error'); }
+}
+async function updateTask(id, data) {
+  setSyncStatus('saving','Saving...');
+  try {
+    await setDoc(doc(db,'tasks',id), {...data, updatedAt:serverTimestamp(), updatedBy: currentUser?.email||''}, {merge:true});
+  } catch(e) { console.error(e); toast('Error updating task'); setSyncStatus('error','Save error'); }
+}
+window.delT = async id => {
+  if(!isAdmin) return;
+  if(pinnedId===id) closePopup();
+  try {
+    await deleteDoc(doc(db,'tasks',id));
+    const ps=getProjs(); if(curTab!=='master'&&!ps.includes(curTab)) curTab='master';
+    toast('Task deleted');
+  } catch(e) { console.error(e); toast('Error deleting task'); }
+};
+async function addMember(name) {
+  try { await addDoc(collection(db,'team'),{name}); }
+  catch(e) { console.error(e); }
+}
+async function updateMember(id,name) {
+  try { await setDoc(doc(db,'team',id),{name},{merge:true}); }
+  catch(e) { console.error(e); }
+}
+async function deleteMember(id) {
+  try { await deleteDoc(doc(db,'team',id)); }
+  catch(e) { console.error(e); }
+}
+
+// ── Popup ─────────────────────────────────────────────────────
+function pphtml(t) {
+  const th=(t.types||[]).map(tp=>`<span class="pbdg ${PB[tp]||''}">${tp}</span>`).join('');
+  const ah=(t.assignees||[]).map(a=>`<span class="pbdg" style="background:rgba(128,128,128,.15);color:var(--text-secondary)">${a}</span>`).join('');
+  const c=pcol(t.project);
+  return `<div class="pprow"><span class="pplbl">Project</span><span class="ppval"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span>${t.project}</span></span></div>
+<div class="pprow"><span class="pplbl">Priority</span><span class="ppval"><span class="pbdg ${PB[t.priority]||''}">${t.priority[0].toUpperCase()+t.priority.slice(1)}</span></span></div>
+<div class="pprow"><span class="pplbl">Type</span><span class="ppval">${th||'<span style="color:var(--text-faint)">&#8212;</span>'}</span></div>
+<div class="pprow"><span class="pplbl">Assigned</span><span class="ppval" style="display:flex;flex-wrap:wrap;gap:3px">${ah||'<span style="color:var(--text-faint)">&#8212;</span>'}</span></div>
+<div class="pprow"><span class="pplbl">Start</span><span class="ppval">${fd(t.start)}</span></div>
+<div class="pprow"><span class="pplbl">Due</span><span class="ppval">${fd(t.end)}</span></div>
+<div class="pprow" style="margin-top:4px;padding-top:4px;border-top:.5px solid var(--border-soft)">
+  <span class="pplbl">Added by</span><span class="ppval" style="color:var(--text-muted)">${t.createdBy||'Unknown'}</span>
+</div>`;
+}
+let hvt=null;
+function showPP(id,el,pin){
+  const t=tasks.find(t=>t.id===id); if(!t)return;
+  document.getElementById('pp-t').textContent=t.name;
+  document.getElementById('pp-b').innerHTML=pphtml(t);
+  const pp=document.getElementById('gpopup');
+  pp.className='popup vis'+(pin?' pin':'');
+  pp.style.display='block';
+  const r=el.getBoundingClientRect(),pw=pp.offsetWidth||240,ph=pp.offsetHeight||180;
+  let L=r.right+8,T=r.top-ph/2+r.height/2;
+  if(L+pw>window.innerWidth-10)L=r.left-pw-8;
+  L=Math.max(8,L); T=Math.max(8,Math.min(T,window.innerHeight-ph-8));
+  pp.style.left=L+'px'; pp.style.top=T+'px';
+  if(pin){pinnedId=id;applyHL();}
+}
+window.closePopup = () => {
+  const pp=document.getElementById('gpopup');
+  pp.className='popup'; pp.style.display='none';
+  pinnedId=null; applyHL();
+};
+function applyHL(){
+  document.querySelectorAll('.gbar').forEach(b=>{const id=b.dataset.id;b.classList.remove('bhl','bdim');if(pinnedId){if(id===pinnedId)b.classList.add('bhl');else b.classList.add('bdim');}});
+  document.querySelectorAll('.grow[data-id]').forEach(r=>{r.classList.toggle('rhl',!!pinnedId&&r.dataset.id===pinnedId);});
+  document.querySelectorAll('tr[data-id]').forEach(r=>{const id=r.dataset.id;r.classList.remove('thl','tdim');if(pinnedId){if(id===pinnedId){r.classList.add('thl');r.scrollIntoView({behavior:'smooth',block:'nearest'});}else r.classList.add('tdim');}});
+}
+window.onBE=function(e,id,el){if(pinnedId)return;clearTimeout(hvt);hvt=setTimeout(()=>showPP(id,el,false),100);};
+window.onBL=function(){if(pinnedId)return;clearTimeout(hvt);const pp=document.getElementById('gpopup');pp.className='popup';pp.style.display='none';};
+window.onBC=function(e,id,el){e.stopPropagation();clearTimeout(hvt);if(pinnedId===id){closePopup();return;}showPP(id,el,true);};
+document.addEventListener('click',e=>{if(!pinnedId)return;const pp=document.getElementById('gpopup');if(pp.contains(e.target)||e.target.closest('.gbar'))return;closePopup();});
+
+// ── Filters ───────────────────────────────────────────────────
+window.setF = (k,v) => { filt[k]=v; if(pinnedId)closePopup(); render(); };
+window.clearF = () => { filt={priority:'',type:'',assignee:''}; render(); };
+function fbarHtml(tl){
+  const aa=[...new Set(tl.flatMap(t=>t.assignees||[]))].sort();
+  const dot=hasF()?'<span class="fadot"></span>':'';
+  return `<div class="fbar">
+    <span class="fbl">Filter${dot}</span><div class="fdiv"></div>
+    <div class="fgrp"><label class="fbl">Priority</label>
+      <select class="fsel" onchange="setF('priority',this.value)"><option value="">All</option>${PRIOS.map(p=>`<option value="${p}"${filt.priority===p?' selected':''}>${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select>
+    </div>
+    <div class="fgrp"><label class="fbl">Type</label>
+      <select class="fsel" onchange="setF('type',this.value)"><option value="">All</option>${TTYPES.map(t=>`<option value="${t}"${filt.type===t?' selected':''}>${t}</option>`).join('')}</select>
+    </div>
+    <div class="fgrp"><label class="fbl">Assigned</label>
+      <select class="fsel" onchange="setF('assignee',this.value)"><option value="">All</option>${aa.map(a=>`<option value="${a}"${filt.assignee===a?' selected':''}>${a}</option>`).join('')}</select>
+    </div>
+    ${hasF()?`<button class="fclear" onclick="clearF()">Clear</button>`:''}
+  </div>`;
+}
+
+// ── Gantt ─────────────────────────────────────────────────────
+function ganttHtml(tl){
+  if(!tl.length) return '<div class="empty">No tasks &#8212; click + Add Task to begin.</div>';
+  const {min,max,days,cols}=dr(tl); const step=days/cols;
+  let hdr=''; for(let i=0;i<cols;i++){const d=new Date(min);d.setDate(d.getDate()+Math.round(i*step));hdr+=`<div class="gdcell" style="flex:1;min-width:0">${fs(d)}</div>`;}
+  let grid=''; for(let i=0;i<cols;i++) grid+=`<div class="ggcol"></div>`;
+  let rows=tl.map(t=>{
+    const ts=new Date(t.start),te=new Date(t.end),tot=max-min;
+    const L=Math.max(0,(ts-min)/tot*100),R=Math.max(0,(max-te)/tot*100),W=Math.max(2,100-L-R);
+    const tc=t.types&&t.types[0]?TCOL[t.types[0]]:null;
+    const passes=tpf(t);
+    return `<div class="grow${pinnedId===t.id?' rhl':''}" data-id="${t.id}">
+      <div class="gtlbl" title="${t.name}">${t.name}</div>
+      <div class="gtrack">
+        <div class="gbar p-${t.priority}${!passes?' bdim':''}${pinnedId===t.id?' bhl':''}" data-id="${t.id}"
+          style="left:${L.toFixed(1)}%;width:${W.toFixed(1)}%;${tc&&passes?'border-left:3px solid '+tc:''}"
+          onmouseenter="onBE(event,'${t.id}',this)" onmouseleave="onBL()" onclick="onBC(event,'${t.id}',this)"
+        >${t.name}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="gwrap"><div class="gant">
+    <div class="ghdr"><div class="glbl">Task</div><div class="gdates">${hdr}</div></div>
+    <div class="gbody"><div class="ggrid">${grid}</div>${rows}</div>
+  </div></div>`;
+}
+
+// ── Multi-select ──────────────────────────────────────────────
+function msHtml(tid,field,opts,sel,pillCls,locked){
+  const uid=`ms${tid}${field}`;
+  const pills=sel.map(s=>`<span class="mspill ${pillCls(s)}" data-v="${s}">${s}${locked?'':` <span class="mspx" onclick="msRm(event,'${uid}','${tid}','${field}','${s.replace(/'/g,"\\'")}')">&#215;</span>`}</span>`).join('');
+  if(locked) return `<div class="msw"><div class="msbox lck">${pills||'<span class="msph">&#8212;</span>'}</div></div>`;
+  const os=opts.map(o=>`<div class="msopt"><input type="checkbox" ${sel.includes(o)?'checked':''} onchange="msT('${uid}','${tid}','${field}','${o.replace(/'/g,"\\'")}',this.checked)"><span>${o}</span></div>`).join('');
+  return `<div class="msw" id="${uid}"><div class="msbox" onclick="msO(event,'${uid}')">${pills||'<span class="msph">Select&#8230;</span>'}</div><div class="msdd" id="${uid}-dd">${os}</div></div>`;
+}
+function tpc(t){return TBADGE[t]||'';}
+function apc(){return '';}
+window.msO=function(e,uid){
+  if(!isAdmin)return; e.stopPropagation();
+  document.querySelectorAll('.msdd.open').forEach(d=>{if(d.id!==uid+'-dd'){d.classList.remove('open');const b=d.previousElementSibling;if(b)b.classList.remove('open');}});
+  const dd=document.getElementById(uid+'-dd');
+  if(dd){dd.classList.toggle('open');document.getElementById(uid).querySelector('.msbox').classList.toggle('open',dd.classList.contains('open'));}
+  document.addEventListener('click',closeMs,{once:true});
+};
+function closeMs(){document.querySelectorAll('.msdd.open').forEach(d=>{d.classList.remove('open');const b=d.previousElementSibling;if(b)b.classList.remove('open');});}
+window.msT=function(uid,tid,field,val,chk){
+  if(!isAdmin)return;
+  const t=tasks.find(t=>t.id===tid); if(!t)return;
+  if(!t[field])t[field]=[];
+  if(chk){if(!t[field].includes(val))t[field].push(val);}else t[field]=t[field].filter(v=>v!==val);
+  const box=document.querySelector(`#${uid} .msbox`);
+  if(box){const pills=(t[field]||[]).map(s=>{const cls=field==='types'?(TBADGE[s]||''):'';return`<span class="mspill ${cls}" data-v="${s}">${s} <span class="mspx" onclick="msRm(event,'${uid}','${tid}','${field}','${s.replace(/'/g,"\\'")}')">&#215;</span></span>`;}).join('');box.innerHTML=pills||'<span class="msph">Select&#8230;</span>';}
+  setTimeout(()=>{const dd=document.getElementById(uid+'-dd');if(dd)dd.classList.add('open');},0);
+  updateTask(tid,{[field]:t[field]});
+};
+window.msRm=function(e,uid,tid,field,val){
+  if(!isAdmin)return; e.stopPropagation();
+  const t=tasks.find(t=>t.id===tid); if(!t)return;
+  t[field]=(t[field]||[]).filter(v=>v!==val);
+  document.querySelectorAll(`#${uid}-dd .msopt`).forEach(o=>{if(o.querySelector('span').textContent===val){const c=o.querySelector('input');if(c)c.checked=false;}});
+  const pill=document.querySelector(`#${uid} .mspill[data-v="${val}"]`); if(pill)pill.remove();
+  const box=document.querySelector(`#${uid} .msbox`); if(box&&!box.querySelector('.mspill'))box.innerHTML='<span class="msph">Select&#8230;</span>';
+  updateTask(tid,{[field]:t[field]});
+};
+
+// ── Table ─────────────────────────────────────────────────────
+function tblHtml(tl,showProj){
+  if(!tl.length) return '';
+  const lk=!isAdmin;
+  const rows=tl.map((t,i)=>{
+    const passes=tpf(t),hl=pinnedId===t.id;
+    return `<tr data-id="${t.id}" class="${hl?'thl':(!passes?'tdim':'')}">
+      <td class="tnum">${i+1}</td>
+      <td><input type="text" value="${t.name||''}" style="min-width:95px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','name',this.value)`}"></td>
+      ${showProj?`<td><input type="text" value="${t.project||''}" style="min-width:70px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','project',this.value)`}"></td>`:''}
+      <td>${msHtml(t.id,'types',TTYPES,t.types||[],tpc,lk)}</td>
+      <td>${msHtml(t.id,'assignees',teamNames(),t.assignees||[],apc,lk)}</td>
+      <td><input type="date" value="${t.start||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','start',this.value)`}"></td>
+      <td><input type="date" value="${t.end||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','end',this.value)`}"></td>
+      <td><select ${lk?'disabled':''} onchange="${lk?'':` utF('${t.id}','priority',this.value)`}">
+        ${PRIOS.map(p=>`<option value="${p}"${p===t.priority?' selected':''}>${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}
+      </select></td>
+      <td><span class="badge badge-${t.priority||'low'}">${(t.priority||'low')[0].toUpperCase()+(t.priority||'low').slice(1)}</span></td>
+      <td><button class="dbtn" onclick="${lk?'needAdmin()':` delT('${t.id}')`}" title="${lk?'Admin required':'Delete'}">&#x2715;</button></td>
+    </tr>`;
+  }).join('');
+  const vn=lk?`<div class="vonote">&#128274; View-only &#8212; <span style="color:#FE7400;cursor:pointer;text-decoration:underline" onclick="openAdminLogin()">Admin login</span> to edit</div>`:'';
+  return `<div class="sdiv"><span class="stit">Task list</span></div>
+  ${vn}<div style="overflow-x:auto"><table>
+    <thead><tr><th>#</th><th>Task</th>${showProj?'<th>Project</th>':''}<th>Type</th><th>Assigned</th><th>Start</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+window.utF = (id,f,v) => {
+  if(!isAdmin) return;
+  const t=tasks.find(t=>t.id===id);
+  if(t) { t[f]=v; updateTask(id,{[f]:v}); }
+};
+window.needAdmin = () => {
+  setMC(`<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox mbox-sm">
+    <div class="mhdr"><div class="kbar"></div><h3>Admin access required</h3></div>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:1rem">This action requires administrator login.</p>
+    <div class="mact"><button class="bcanc" onclick="setMC('')">Cancel</button><button class="bdark" onclick="setMC('');openAdminLogin()">Login</button></div>
+  </div></div>`);
+};
+
+function legend(){
+  return `<div class="leg-row">
+    ${[['low','#1D9E75'],['medium','#378ADD'],['high','#FE7400'],['urgent','#E24B4A']].map(([p,c])=>`<span class="leg-i"><span class="leg-sw" style="background:${c}"></span>${p[0].toUpperCase()+p.slice(1)}</span>`).join('')}
+    <span class="leg-i" style="padding-left:10px;border-left:.5px solid var(--border-soft);color:var(--text-faint)">Bar border = task type</span>
+  </div>`;
+}
+
+// ── Render ────────────────────────────────────────────────────
+function render(){
+  if(!document.getElementById('content-area') || document.getElementById('content-area').style.display==='none') return;
+  const ps=getProjs(); const lk=!isAdmin;
+  let tabs=`<button class="tab${curTab==='master'?' active':''}" onclick="setTab('master')">All projects</button>`;
+  ps.forEach(p=>{tabs+=`<button class="tab${curTab===p?' active':''}" onclick="setTab('${p.replace(/'/g,"\\'")}')"><span class="pdot" style="background:${pcol(p)}"></span>${p}</button>`;});
+  tabs+=`<div class="tbr">
+    <button class="mbtn" onclick="${lk?'needAdmin()':'openPM()'}">${lk?'&#128274; ':''}Manage people</button>
+    <button class="abtn" onclick="${lk?'needAdmin()':'openAdd()'}">${lk?'&#128274; ':''}+ Add task</button>
+  </div>`;
+  document.getElementById('tabbar').innerHTML=tabs;
+
+  let html=`<div class="gpage${curTab==='master'?' active':''}" id="pg-master">
+    <div style="margin-bottom:14px"><span class="stit">All projects &#8212; ${tasks.length} task${tasks.length!==1?'s':''}</span></div>
+    ${fbarHtml(tasks)}${legend()}${ganttHtml(tasks)}${tblHtml(tasks,true)}</div>`;
+  ps.forEach(p=>{
+    const pt=tasks.filter(t=>t.project===p);
+    html+=`<div class="gpage${curTab===p?' active':''}" id="pg-${p.replace(/[^a-z0-9]/gi,'_')}">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:13px">
+        <span style="width:4px;height:19px;background:#FE7400;border-radius:2px;display:inline-block"></span>
+        <span style="font-size:14px;font-weight:500;color:var(--text-primary)">${p}</span>
+        <span style="font-size:11px;color:var(--text-muted)">${pt.length} task${pt.length!==1?'s':''}</span>
+      </div>
+      ${fbarHtml(pt)}${legend()}${ganttHtml(pt)}${tblHtml(pt,false)}</div>`;
+  });
+  document.getElementById('pages').innerHTML=html;
+  document.addEventListener('click',closeMs,{once:true});
+}
+window.setTab = p => { closePopup(); curTab=p; render(); };
+
+// ── People manager ────────────────────────────────────────────
+window.openPM = () => { if(!isAdmin){needAdmin();return;} setMC(buildPM()); };
+function buildPM(){
+  const rows=team.map((m,i)=>`<div class="prow" id="pr-${i}">
+    <div class="pavt">${inits(m.name)}</div><span class="pname" id="pn-${i}">${m.name}</span>
+    <button class="dbtn" onclick="editP(${i})" style="font-size:12px;opacity:.6">&#9998;</button>
+    <button class="dbtn" onclick="delP(${i})">&#x2715;</button>
+  </div>`).join('');
+  return `<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox" style="width:430px">
+    <div class="mhdr"><div class="obar"></div><h3>Manage team members</h3></div>
+    <p class="spnote">Stored in Firestore. Changes are saved in real time and shared with all users immediately.</p>
+    <div class="plist" id="plist">${rows}</div>
+    <div class="aprow"><input type="text" id="npi" placeholder="Full name" onkeydown="if(event.key==='Enter')addP()"><button class="badd" onclick="addP()">+ Add</button></div>
+    <div class="mact" style="margin-top:1.1rem"><button class="bprim" onclick="setMC('');render()">Done</button></div>
+  </div></div>`;
+}
+function rebuildPList(){
+  document.getElementById('plist').innerHTML=team.map((m,i)=>`<div class="prow" id="pr-${i}"><div class="pavt">${inits(m.name)}</div><span class="pname" id="pn-${i}">${m.name}</span><button class="dbtn" onclick="editP(${i})" style="font-size:12px;opacity:.6">&#9998;</button><button class="dbtn" onclick="delP(${i})">&#x2715;</button></div>`).join('');
+}
+window.addP = async () => {
+  const inp=document.getElementById('npi'), name=inp.value.trim();
+  if(!name) return;
+  if(team.some(m=>m.name===name)){inp.style.borderColor='#E24B4A';setTimeout(()=>inp.style.borderColor='',1200);return;}
+  inp.value='';
+  await addMember(name); // Firestore listener updates team array automatically
+};
+window.delP = async i => {
+  const m=team[i];
+  // Remove from all task assignees in Firestore
+  const affected=tasks.filter(t=>(t.assignees||[]).includes(m.name));
+  for(const t of affected) await updateTask(t.id,{assignees:t.assignees.filter(a=>a!==m.name)});
+  await deleteMember(m.id);
+  setMC(buildPM());
+};
+window.editP = i => {
+  const o=team[i].name, s=document.getElementById(`pn-${i}`);
+  if(s)s.outerHTML=`<input class="pei" id="pn-${i}" value="${o}" onkeydown="if(event.key==='Enter')saveP(${i});if(event.key==='Escape')cancelP(${i},'${o.replace(/'/g,"\\'")}');" onblur="saveP(${i})">`;
+  const inp=document.getElementById(`pn-${i}`); if(inp){inp.focus();inp.select();}
+};
+window.saveP = async i => {
+  const inp=document.getElementById(`pn-${i}`); if(!inp)return;
+  const nv=inp.value.trim(); if(!nv){inp.focus();return;}
+  const old=team[i].name, id=team[i].id;
+  inp.outerHTML=`<span class="pname" id="pn-${i}">${nv}</span>`;
+  const av=document.querySelector(`#pr-${i} .pavt`); if(av)av.textContent=inits(nv);
+  // Update assignee references in tasks
+  const affected=tasks.filter(t=>(t.assignees||[]).includes(old));
+  for(const t of affected) await updateTask(t.id,{assignees:t.assignees.map(a=>a===old?nv:a)});
+  await updateMember(id, nv);
+};
+window.cancelP = (i,o) => {
+  const inp=document.getElementById(`pn-${i}`); if(inp)inp.outerHTML=`<span class="pname" id="pn-${i}">${o}</span>`;
+};
+
+// ── Add task modal ────────────────────────────────────────────
+window.openAdd = () => {
+  if(!isAdmin){needAdmin();return;}
+  const today=new Date().toISOString().split('T')[0], ps=getProjs();
+  setMC(`<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox">
+    <div class="mhdr"><div class="obar"></div><h3>Add new task</h3></div>
+    <div class="mf"><label>Task name</label><input type="text" id="fn" placeholder="e.g. Design review"></div>
+    <div class="mf"><label>Project number</label><input type="text" id="fp" list="fpl" placeholder="e.g. PRJ-004"><datalist id="fpl">${ps.map(p=>`<option value="${p}">`).join('')}</datalist></div>
+    <div class="mf"><label>Task type</label><div class="mms">${TTYPES.map(t=>`<label><input type="checkbox" name="ft" value="${t}"> ${t}</label>`).join('')}</div></div>
+    <div class="mf"><label>Assigned to</label><div class="mms">${teamNames().map(m=>`<label><input type="checkbox" name="fa" value="${m}"> ${m}</label>`).join('')}</div></div>
+    <div class="mf"><label>Start date</label><input type="date" id="fsd" value="${today}"></div>
+    <div class="mf"><label>Due date</label><input type="date" id="fed" value="${today}"></div>
+    <div class="mf"><label>Priority</label><select id="fpr">${PRIOS.map(p=>`<option value="${p}">${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select></div>
+    <div class="mact"><button class="bcanc" onclick="setMC('')">Cancel</button><button class="bprim" onclick="subTask()">Add task</button></div>
+  </div></div>`);
+};
+window.subTask = async () => {
+  if(!isAdmin) return;
+  const name=document.getElementById('fn').value.trim(), proj=document.getElementById('fp').value.trim();
+  const start=document.getElementById('fsd').value, end=document.getElementById('fed').value;
+  const priority=document.getElementById('fpr').value;
+  const types=[...document.querySelectorAll('input[name=ft]:checked')].map(c=>c.value);
+  const assignees=[...document.querySelectorAll('input[name=fa]:checked')].map(c=>c.value);
+  if(!name||!proj||!start||!end){alert('Please fill in all required fields.');return;}
+  if(end<start){alert('Due date must be on or after start date.');return;}
+  setMC('');
+  curTab=proj;
+  await addTask({name,project:proj,start,end,priority,types,assignees});
+  // Firestore onSnapshot fires → tasks array updates → render() called automatically
+};
+
+// ── Init: show loading until Firebase resolves auth state ─────
+showLoad('Checking sign-in status...');
+
+</script>
+</body>
+</html>
