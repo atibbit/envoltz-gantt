@@ -664,30 +664,74 @@ function startListeners() {
   showLoad('Loading project data...');
   setSyncStatus('', 'Loading...');
 
-  // Tasks
-  const tasksQ = query(collection(db,'tasks'), orderBy('createdAt','asc'));
-  unsubTasks = onSnapshot(tasksQ, snap => {
-    tasks = snap.docs.map(d => ({id:d.id, ...d.data()}));
-    markUpd(); render();
-    setSyncStatus('live','Live');
-    hideLoad();
-  }, err => {
-    console.error('Tasks error:', err);
-    setSyncStatus('error','Sync error');
-    hideLoad();
-  });
+  // Tasks — try ordered first, fall back to unordered if index missing
+  function attachTasksListener(ordered=true) {
+    const tasksQ = ordered
+      ? query(collection(db,'tasks'), orderBy('createdAt','asc'))
+      : collection(db,'tasks');
+    unsubTasks = onSnapshot(tasksQ, snap => {
+      tasks = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      // Sort client-side by createdAt if we have it
+      tasks.sort((a,b)=>{
+        const at = a.createdAt?.toMillis?.()||0;
+        const bt = b.createdAt?.toMillis?.()||0;
+        return at - bt;
+      });
+      markUpd(); render();
+      setSyncStatus('live','Live');
+      hideLoad();
+    }, err => {
+      console.error('Tasks listener error:', err.code, err.message);
+      if(ordered && (err.code==='failed-precondition'||err.message?.includes('index'))) {
+        // Missing Firestore index — retry without orderBy
+        console.warn('Missing index — retrying without orderBy');
+        if(unsubTasks) { unsubTasks(); unsubTasks=null; }
+        attachTasksListener(false);
+      } else if(err.code==='permission-denied') {
+        setSyncStatus('error','Permission denied');
+        showErrorBanner('Firestore permission denied. Check your security rules in the Firebase console — make sure authenticated users can read/write the tasks collection.');
+        hideLoad();
+      } else {
+        setSyncStatus('error','Sync error — check console');
+        showErrorBanner('Could not load tasks: ' + (err.message||err.code));
+        hideLoad();
+      }
+    });
+  }
+  attachTasksListener(true);
 
-  // Team
-  const teamQ = query(collection(db,'team'), orderBy('name','asc'));
-  unsubTeam = onSnapshot(teamQ, snap => {
-    team = snap.docs.map(d => ({id:d.id, ...d.data()}));
-    if(team.length === 0) seedTeam();
-    // If the people manager modal is open, refresh its list in-place
-    if(document.getElementById('plist')) {
-      rebuildPList();
-    }
-    render();
-  });
+  // Team — try ordered first, fall back to unordered if index missing
+  function attachTeamListener(ordered=true) {
+    const teamQ = ordered
+      ? query(collection(db,'team'), orderBy('name','asc'))
+      : collection(db,'team');
+    unsubTeam = onSnapshot(teamQ, snap => {
+      team = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      team.sort((a,b)=>a.name.localeCompare(b.name));
+      if(team.length === 0) seedTeam();
+      if(document.getElementById('plist')) rebuildPList();
+      render();
+    }, err => {
+      console.error('Team listener error:', err.code, err.message);
+      if(ordered && (err.code==='failed-precondition'||err.message?.includes('index'))) {
+        if(unsubTeam) { unsubTeam(); unsubTeam=null; }
+        attachTeamListener(false);
+      }
+      // Team errors are non-fatal — tasks still work
+    });
+  }
+  attachTeamListener(true);
+}
+
+function showErrorBanner(msg) {
+  // Inject a visible error banner into the page
+  const existing = document.getElementById('err-banner');
+  if(existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'err-banner';
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#A32D2D;color:#fff;padding:12px 20px;font-size:13px;line-height:1.5;display:flex;gap:12px;align-items:flex-start';
+  div.innerHTML = `<span style="flex:1">&#9888; ${msg}</span><button onclick="document.getElementById('err-banner').remove()" style="background:none;border:1px solid rgba(255,255,255,.4);color:#fff;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:12px;flex-shrink:0">Dismiss</button>`;
+  document.body.prepend(div);
 }
 
 async function seedTeam() {
