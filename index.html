@@ -1083,18 +1083,28 @@ window.utF = (id,f,v) => {
   if(!t) return;
   t[f]=v;
   updateTask(id,{[f]:v});
-  // If status changed, update the select's color class live without full re-render
+  // If status changed, update visuals immediately in-place then defer the
+  // full render() so it runs AFTER the onchange event fully completes.
+  // Calling render() synchronously destroys the <select> while its own
+  // onchange is still on the call stack, which breaks the dropdown.
   if(f==='status') {
     const so=statusObj(v);
+    const isComp=(v==='completed');
+    // Update status-sel color class on the affected row immediately
     document.querySelectorAll(`tr[data-id="${id}"] .status-sel`).forEach(sel=>{
       sel.className=`status-sel ${so.cls}`;
     });
-    // Also update the gantt bar's completed class
+    // Update gantt bar completed class immediately
     document.querySelectorAll(`.gbar[data-id="${id}"]`).forEach(bar=>{
-      bar.classList.toggle('completed', v==='completed');
+      bar.classList.toggle('completed', isComp);
     });
-    // Move row between active/completed sections without full re-render
-    render();
+    // Update row completed dim class immediately for instant visual feedback
+    document.querySelectorAll(`tr[data-id="${id}"]`).forEach(row=>{
+      row.classList.toggle('trow-completed', isComp);
+    });
+    // Defer full render (moves row between Active/Completed sections)
+    // until after this event handler returns — prevents broken DOM mid-event
+    setTimeout(() => render(), 0);
   }
 };
 window.needAdmin = () => {
