@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7,72 +7,72 @@
 
 <!--
 ================================================================================
-  ENVOLTZ GANTT DASHBOARD — Firebase + Google Sign-In
-  Hosted on Vercel | Data stored in Firestore (real-time)
+  ENVOLTZ GANTT DASHBOARD — Firebase + Email/Password Auth
+  Hosted on Vercel | Real-time data in Firestore
 ================================================================================
 
   SETUP INSTRUCTIONS (~15 minutes total)
   ───────────────────────────────────────
 
-  PART 1 — CREATE FIREBASE PROJECT (5 min)
-  ─────────────────────────────────────────
+  PART 1 — CREATE FIREBASE PROJECT (skip if already done)
+  ────────────────────────────────────────────────────────
   1. Go to https://console.firebase.google.com
-  2. Click "Add project" → name it "envoltz-gantt" → Continue
-  3. Disable Google Analytics (not needed) → Create project
+  2. Add project → "envoltz-gantt" → Create project
 
-  PART 2 — ENABLE GOOGLE SIGN-IN (2 min)
-  ────────────────────────────────────────
-  1. In Firebase console → Authentication → Get started
-  2. Sign-in method → Google → Enable → enter support email → Save
-  3. Under "Authorized domains" tab → Add your Vercel URL once deployed
-     (e.g. envoltz-gantt.vercel.app)
+  PART 2 — ENABLE EMAIL/PASSWORD SIGN-IN (2 min)
+  ────────────────────────────────────────────────
+  1. Firebase console → Authentication → Get started
+  2. Sign-in method tab → Email/Password → Enable (top toggle only)
+     Leave "Email link (passwordless)" DISABLED
+  3. Save
 
-  PART 3 — CREATE FIRESTORE DATABASE (2 min)
-  ────────────────────────────────────────────
+  PART 3 — CREATE USER ACCOUNTS (1 min per user)
+  ────────────────────────────────────────────────
+  1. Firebase console → Authentication → Users tab
+  2. Click "Add user"
+  3. Enter the user's email and a temporary password
+  4. Repeat for each team member who needs access
+  NOTE: Users cannot sign up themselves — only accounts
+        you create here can log in. This is by design.
+
+  PART 4 — CREATE FIRESTORE DATABASE (skip if already done)
+  ──────────────────────────────────────────────────────────
   1. Firebase console → Firestore Database → Create database
-  2. Choose "Start in production mode" → select your region → Enable
-  3. Go to Rules tab → replace the rules with:
+  2. Start in production mode → select region → Enable
+  3. Rules tab → replace with:
 
      rules_version = '2';
      service cloud.firestore {
        match /databases/{database}/documents {
-         // Only signed-in @envoltz.com users can read
          match /tasks/{taskId} {
-           allow read: if request.auth != null
-                       && request.auth.token.email.matches('.*@envoltz\\.com');
-           allow write: if request.auth != null
-                        && request.auth.token.email.matches('.*@envoltz\\.com');
+           allow read, write: if request.auth != null;
          }
          match /team/{memberId} {
-           allow read: if request.auth != null
-                       && request.auth.token.email.matches('.*@envoltz\\.com');
-           allow write: if request.auth != null
-                        && request.auth.token.email.matches('.*@envoltz\\.com');
+           allow read, write: if request.auth != null;
          }
        }
      }
 
-  4. Publish the rules
+  4. Publish
 
-  PART 4 — GET YOUR FIREBASE CONFIG (2 min)
-  ───────────────────────────────────────────
-  1. Firebase console → Project settings (gear icon) → General
-  2. Scroll down to "Your apps" → click </> (Web) → register app
-     App nickname: "Envoltz Gantt" → Register app
-  3. Copy the firebaseConfig object values into the CONFIG block below
+  PART 5 — GET FIREBASE CONFIG & PASTE BELOW (2 min)
+  ────────────────────────────────────────────────────
+  1. Firebase console → gear icon → Project settings → Your apps
+  2. Click </> to add a web app if you haven't yet
+  3. Copy the firebaseConfig values into the CONFIG block below
 
-  PART 5 — DEPLOY TO VERCEL (4 min)
-  ───────────────────────────────────
-  1. Rename this file to: index.html
-  2. Create a GitHub repo (github.com → New repository → "envoltz-gantt")
-  3. Upload index.html to the repo
-  4. Go to vercel.com → Add New Project → import the GitHub repo → Deploy
-  5. Copy your Vercel URL (e.g. https://envoltz-gantt.vercel.app)
-  6. Back in Firebase → Authentication → Settings → Authorized domains
-     → Add domain → paste your Vercel URL (without https://)
+  PART 6 — DEPLOY TO VERCEL (skip if already done)
+  ──────────────────────────────────────────────────
+  1. Rename this file to index.html
+  2. Push to GitHub repo → import to vercel.com → Deploy
+  3. Done — your Vercel URL is the live app
 
-  THAT'S IT — the app is live! Any change one user makes appears
-  instantly for all other users. No polling. True real-time.
+  MANAGING USERS GOING FORWARD:
+  ──────────────────────────────
+  Add users:    Firebase console → Authentication → Users → Add user
+  Remove users: Click the ⋮ menu next to the user → Delete user
+  Reset password: Click the ⋮ menu → Reset password (sends email)
+  Users can also reset their own password from the login screen.
 
 ================================================================================
 -->
@@ -109,10 +109,9 @@ html,body{min-height:100%;font-family:system-ui,-apple-system,sans-serif;font-si
 .admin-badge{display:flex;align-items:center;gap:5px;font-size:11px;color:#1D9E75;background:rgba(29,158,117,.15);padding:4px 10px;border-radius:20px;font-weight:500;border:1px solid rgba(29,158,117,.3)}
 .admin-dot{width:6px;height:6px;border-radius:50%;background:#1D9E75}
 .user-chip{display:flex;align-items:center;gap:7px;font-size:11px;color:#aaa}
-.user-avatar{width:24px;height:24px;border-radius:50%;object-fit:cover;border:1px solid #444}
-.user-initials{width:24px;height:24px;border-radius:50%;background:#FE7400;color:#000;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.user-initials{width:26px;height:26px;border-radius:50%;background:#FE7400;color:#000;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .sync-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:#666;padding:3px 9px;border:1px solid #333;border-radius:20px}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;transition:background .3s}
 .sync-dot.live{background:#1D9E75}
 .sync-dot.saving{background:#FE7400;animation:blink .6s infinite}
 .sync-dot.error{background:#E24B4A}
@@ -138,13 +137,24 @@ html,body{min-height:100%;font-family:system-ui,-apple-system,sans-serif;font-si
 .gpage{display:none}.gpage.active{display:block}
 
 /* ── Sign-in Screen ── */
-.signin-screen{background:var(--bg-card);border-left:.5px solid var(--border-main);border-right:.5px solid var(--border-main);flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:60px 20px;text-align:center}
-.signin-screen h2{font-size:20px;font-weight:500;color:var(--text-primary)}
-.signin-screen p{font-size:13px;color:var(--text-muted);max-width:380px;line-height:1.6}
-.google-btn{display:flex;align-items:center;gap:10px;padding:10px 24px;background:#fff;border:1px solid #d0d0cc;border-radius:4px;cursor:pointer;font-size:14px;font-weight:500;color:#1a1a1a;box-shadow:0 2px 6px rgba(0,0,0,.08);transition:box-shadow .15s}
-.google-btn:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
-.google-logo{width:20px;height:20px}
-.domain-note{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-faint);background:var(--notice-bg);padding:8px 14px;border-radius:20px;border:.5px solid var(--border-soft)}
+.signin-screen{background:var(--bg-card);border-left:.5px solid var(--border-main);border-right:.5px solid var(--border-main);flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:60px 20px}
+.signin-card{width:100%;max-width:360px;background:var(--bg-card);border:.5px solid var(--border-main);border-radius:12px;padding:2rem;box-shadow:var(--shadow)}
+.signin-logo{display:flex;justify-content:center;margin-bottom:1.5rem}
+.signin-title{font-size:16px;font-weight:500;color:var(--text-primary);margin-bottom:6px;text-align:center}
+.signin-sub{font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:1.5rem;line-height:1.5}
+.signin-field{margin-bottom:12px}
+.signin-field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.signin-field input{width:100%;padding:9px 12px;font-size:13px;border:.5px solid var(--border-input);border-radius:6px;background:var(--bg-input);color:var(--text-primary);outline:none;transition:border-color .15s}
+.signin-field input:focus{border-color:#FE7400}
+.signin-btn{width:100%;padding:10px;background:#FE7400;color:#000;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;transition:background .15s}
+.signin-btn:hover{background:#e56900}
+.signin-btn:disabled{opacity:.5;cursor:not-allowed}
+.signin-error{font-size:12px;color:#A32D2D;background:#FCEBEB;padding:8px 12px;border-radius:6px;margin-bottom:12px;display:none;line-height:1.4}
+.signin-error.show{display:block}
+.forgot-link{display:block;text-align:center;font-size:11px;color:var(--text-muted);margin-top:12px;cursor:pointer;text-decoration:underline}
+.forgot-link:hover{color:var(--text-primary)}
+.reset-success{font-size:12px;color:#0F6E56;background:#E1F5EE;padding:8px 12px;border-radius:6px;margin-bottom:12px;display:none;line-height:1.4}
+.reset-success.show{display:block}
 
 /* ── Loading overlay ── */
 .loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px}
@@ -298,10 +308,10 @@ select:focus{outline:none;border-color:#FE7400}
   <span class="loading-text" id="loading-text">Loading...</span>
 </div>
 
-<!-- Toast notification -->
+<!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Hover popup -->
+<!-- Popup -->
 <div class="popup" id="gpopup">
   <div class="pphdr"><span class="pptit" id="pp-t"></span><button class="ppx" onclick="closePopup()">&#x2715;</button></div>
   <hr class="ppdiv"><div id="pp-b"></div>
@@ -312,7 +322,6 @@ select:focus{outline:none;border-color:#FE7400}
   <!-- ── Header ── -->
   <div class="ev-header">
     <div class="ev-hl">
-      <!-- Envoltz Logo (uploaded SVG, tight viewBox crop) -->
       <svg viewBox="278 180 2468 460" style="height:40px;width:auto;flex-shrink:0;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ENVOLTZ logo">
         <title>ENVOLTZ</title>
         <g transform="matrix(2.4799338,0,0,2.4799338,287.20802,177.8)">
@@ -331,39 +340,49 @@ select:focus{outline:none;border-color:#FE7400}
         <span id="sync-lbl">Connecting...</span>
       </div>
       <div id="user-area"></div>
-      <div id="admin-bar">
-        <!-- populated after sign-in -->
-      </div>
+      <div id="admin-bar"></div>
     </div>
   </div>
 
   <div class="topbar" id="tabbar" style="display:none"></div>
 
-  <!-- Sign-in screen (shown before auth) -->
+  <!-- ── Sign-in screen ── -->
   <div class="signin-screen" id="signin-screen">
-    <svg viewBox="278 180 2468 460" style="height:48px;width:auto" xmlns="http://www.w3.org/2000/svg">
-      <g transform="matrix(2.4799338,0,0,2.4799338,287.20802,177.8)">
-        <g transform="translate(-25.584439,-395.23483)">
-          <path fill="#000" d="m 668.60948,493.89722 h -22.53456 l -92.902,65.05068 h 85.10294 z m -20.11255,7.68166 h 8.05477 l -23.1696,49.68736 h -55.84608 z m -6.50987,-20.64668 -2.42201,-7.68166 -151.87507,106.34405 H 651.42925 L 701.0183,473.25054 h -61.41299 l 2.42203,7.68166 h 46.93318 L 646.5355,571.91294 H 512.05309 Z m -29.20714,-7.68166 h -49.38897 l -81.61468,57.14721 -19.0777,22.73593 103.1144,-72.20148 h 22.60384 l -129.93396,90.98074 h -18.84653 l 42.42503,-90.98074 h 14.30532 l -33.6681,72.20148 19.0777,-22.73593 26.64819,-57.14721 h -31.25688 l -49.58905,106.34405 h 33.32633 z m -152.56388,0 H 324.60371 l -49.58905,106.34405 h 31.25687 l 36.37932,-78.01571 h 73.09859 l -36.37932,78.01571 h 31.25687 z m -54.4828,98.6624 H 391.4279 l 36.37933,-78.01572 H 337.7571 l -36.37932,78.01572 h -14.30533 l 42.42502,-90.98074 h 118.66079 z m -134.4604,-20.6467 H 40.823125 L 27.6134,579.59459 h 230.44971 z m -18.10348,20.6467 H 39.671187 L 45.716881,558.9479 H 259.21505 Z m 29.05549,-98.6624 h -96.15484 l -13.20973,28.32834 h 96.15484 z m -18.10348,20.64668 h -79.2033 l 6.04569,-12.96502 h 79.2033 z m 79.91012,-98.66239 H 113.58177 l -13.20972,28.32834 h 230.44971 z m -18.10348,20.64668 H 112.42984 l 6.04569,-12.96504 H 331.9737 Z m -148.33377,57.36903 h -60.65915 l -13.20972,28.32834 h 60.65915 z m -18.10349,20.64668 h -43.70759 l 6.04569,-12.96502 h 43.70759 z m -31.44384,-62.6524 H 96.790034 l -16.005567,34.32406 h 31.256873 z m -20.89933,26.6424 H 92.842252 l 8.841538,-18.96074 h 14.30533 z m 1.31174,15.36332 H 77.20245 L 63.992725,501.57888 H 95.249598 Z M 90.355843,493.89722 H 76.050512 l 6.045694,-12.96502 h 14.30533 z m 1.311739,15.36332 H 60.41071 l -16.005568,34.32404 h 31.256871 z m -20.899323,26.6424 H 56.462928 L 65.304466,516.9422 H 79.609795 Z M 68.72668,473.25054 H 38.794164 L 25.584439,501.57888 H 55.516955 Z M 50.623198,493.89722 H 37.642226 L 43.68792,480.9322 h 12.980973 z m 753.873842,57.36902 h -91.64965 l 36.37933,-78.0157 h -31.25688 l -49.58905,106.34405 h 122.90652 z m -124.05847,20.6467 42.42502,-90.98074 h 14.30534 l -36.37932,78.0157 h 91.64964 l -6.04569,12.96504 z M 919.8114,473.25054 H 766.17825 l -13.20972,28.32834 h 91.64964 l -36.37932,78.01571 h 31.25688 l 36.37932,-78.01571 h 30.72663 z m -154.78509,20.64668 6.0457,-12.96502 h 136.68161 l -6.04569,12.96502 H 870.9813 l -36.37933,78.01572 h -14.30534 l 36.37933,-78.01572 z m 247.34839,7.68166 13.2098,-28.32834 h -88.82156 l -13.20973,28.32834 h 32.16482 l -86.06104,49.68736 -13.20973,28.32835 H 975.9954 l 13.20973,-28.32835 h -62.89145 z m -27.98833,-7.68166 H 935.611 l 6.04571,-12.96502 h 71.86999 l -7.0903,15.20518 -108.79105,62.81052 h 79.50199 l -6.04569,12.96504 h -102.5966 l 7.0903,-15.20518 z"/>
-          <path fill="#FE7400" d="M 79.609795,516.9422 H 65.304466 l -8.841538,18.96074 h 14.305331 z m 85.926645,-36.01 h -43.70759 l -6.04569,12.96502 h 43.70759 z m -49.54732,-42.00572 h -14.30533 l -8.841538,18.96074 H 107.14758 Z M 56.668893,480.9322 H 43.68792 l -6.045694,12.96502 h 12.980972 z"/>
-        </g>
-      </g>
-    </svg>
-    <h2>Envoltz Gantt Dashboard</h2>
-    <p>Sign in with your Envoltz Google account to access live project data. Changes you make are instantly visible to all team members.</p>
-    <button class="google-btn" onclick="doSignIn()">
-      <svg class="google-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-      </svg>
-      Sign in with Google
-    </button>
-    <div class="domain-note">&#128274; Access restricted to @envoltz.com accounts</div>
+    <div class="signin-card">
+      <div class="signin-logo">
+        <svg viewBox="278 180 2468 460" style="height:32px;width:auto" xmlns="http://www.w3.org/2000/svg">
+          <g transform="matrix(2.4799338,0,0,2.4799338,287.20802,177.8)">
+            <g transform="translate(-25.584439,-395.23483)">
+              <path fill="#000" d="m 668.60948,493.89722 h -22.53456 l -92.902,65.05068 h 85.10294 z m -20.11255,7.68166 h 8.05477 l -23.1696,49.68736 h -55.84608 z m -6.50987,-20.64668 -2.42201,-7.68166 -151.87507,106.34405 H 651.42925 L 701.0183,473.25054 h -61.41299 l 2.42203,7.68166 h 46.93318 L 646.5355,571.91294 H 512.05309 Z m -29.20714,-7.68166 h -49.38897 l -81.61468,57.14721 -19.0777,22.73593 103.1144,-72.20148 h 22.60384 l -129.93396,90.98074 h -18.84653 l 42.42503,-90.98074 h 14.30532 l -33.6681,72.20148 19.0777,-22.73593 26.64819,-57.14721 h -31.25688 l -49.58905,106.34405 h 33.32633 z m -152.56388,0 H 324.60371 l -49.58905,106.34405 h 31.25687 l 36.37932,-78.01571 h 73.09859 l -36.37932,78.01571 h 31.25687 z m -54.4828,98.6624 H 391.4279 l 36.37933,-78.01572 H 337.7571 l -36.37932,78.01572 h -14.30533 l 42.42502,-90.98074 h 118.66079 z m -134.4604,-20.6467 H 40.823125 L 27.6134,579.59459 h 230.44971 z m -18.10348,20.6467 H 39.671187 L 45.716881,558.9479 H 259.21505 Z m 29.05549,-98.6624 h -96.15484 l -13.20973,28.32834 h 96.15484 z m -18.10348,20.64668 h -79.2033 l 6.04569,-12.96502 h 79.2033 z m 79.91012,-98.66239 H 113.58177 l -13.20972,28.32834 h 230.44971 z m -18.10348,20.64668 H 112.42984 l 6.04569,-12.96504 H 331.9737 Z m -148.33377,57.36903 h -60.65915 l -13.20972,28.32834 h 60.65915 z m -18.10349,20.64668 h -43.70759 l 6.04569,-12.96502 h 43.70759 z m -31.44384,-62.6524 H 96.790034 l -16.005567,34.32406 h 31.256873 z m -20.89933,26.6424 H 92.842252 l 8.841538,-18.96074 h 14.30533 z m 1.31174,15.36332 H 77.20245 L 63.992725,501.57888 H 95.249598 Z M 90.355843,493.89722 H 76.050512 l 6.045694,-12.96502 h 14.30533 z m 1.311739,15.36332 H 60.41071 l -16.005568,34.32404 h 31.256871 z m -20.899323,26.6424 H 56.462928 L 65.304466,516.9422 H 79.609795 Z M 68.72668,473.25054 H 38.794164 L 25.584439,501.57888 H 55.516955 Z M 50.623198,493.89722 H 37.642226 L 43.68792,480.9322 h 12.980973 z m 753.873842,57.36902 h -91.64965 l 36.37933,-78.0157 h -31.25688 l -49.58905,106.34405 h 122.90652 z m -124.05847,20.6467 42.42502,-90.98074 h 14.30534 l -36.37932,78.0157 h 91.64964 l -6.04569,12.96504 z M 919.8114,473.25054 H 766.17825 l -13.20972,28.32834 h 91.64964 l -36.37932,78.01571 h 31.25688 l 36.37932,-78.01571 h 30.72663 z m -154.78509,20.64668 6.0457,-12.96502 h 136.68161 l -6.04569,12.96502 H 870.9813 l -36.37933,78.01572 h -14.30534 l 36.37933,-78.01572 z m 247.34839,7.68166 13.2098,-28.32834 h -88.82156 l -13.20973,28.32834 h 32.16482 l -86.06104,49.68736 -13.20973,28.32835 H 975.9954 l 13.20973,-28.32835 h -62.89145 z m -27.98833,-7.68166 H 935.611 l 6.04571,-12.96502 h 71.86999 l -7.0903,15.20518 -108.79105,62.81052 h 79.50199 l -6.04569,12.96504 h -102.5966 l 7.0903,-15.20518 z"/>
+              <path fill="#FE7400" d="M 79.609795,516.9422 H 65.304466 l -8.841538,18.96074 h 14.305331 z m 85.926645,-36.01 h -43.70759 l -6.04569,12.96502 h 43.70759 z m -49.54732,-42.00572 h -14.30533 l -8.841538,18.96074 H 107.14758 Z M 56.668893,480.9322 H 43.68792 l -6.045694,12.96502 h 12.980972 z"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <p class="signin-title">Sign in to Gantt Dashboard</p>
+      <p class="signin-sub">Enter your Envoltz account credentials to access the live project dashboard.</p>
+
+      <div class="reset-success" id="reset-success">
+        Password reset email sent. Check your inbox.
+      </div>
+      <div class="signin-error" id="signin-error"></div>
+
+      <div class="signin-field">
+        <label>Email</label>
+        <input type="email" id="si-email" placeholder="you@envoltz.com" autocomplete="email"
+          onkeydown="if(event.key==='Enter')document.getElementById('si-pass').focus()">
+      </div>
+      <div class="signin-field">
+        <label>Password</label>
+        <input type="password" id="si-pass" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')doSignIn()">
+      </div>
+      <button class="signin-btn" id="signin-btn" onclick="doSignIn()">Sign in</button>
+      <span class="forgot-link" onclick="doForgotPassword()">Forgot password?</span>
+    </div>
   </div>
 
-  <!-- Main content (shown after auth) -->
+  <!-- ── Main content (shown after auth) ── -->
   <div class="content" id="content-area" style="display:none">
     <div id="pages"></div>
   </div>
@@ -387,77 +406,69 @@ select:focus{outline:none;border-color:#FE7400}
 </div>
 <div id="mc"></div>
 
-<!-- ============================================================
-     FIREBASE SDK  (loaded from CDN)
-     ============================================================ -->
+<!-- ── Firebase SDK ── -->
 <script type="module">
-
 // ============================================================
 //  ⚙️  PASTE YOUR FIREBASE CONFIG HERE
-//  (From Firebase console → Project settings → Your apps → Web)
 // ============================================================
 const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+    apiKey: "AIzaSyD-a1dqnbNaAV1O1bVCxb6xMt1mmBiDRnI",
+    authDomain: "gantt-chart-bbe7a.firebaseapp.com",
+    projectId:         "gantt-chart-bbe7a",
+    storageBucket: "gantt-chart-bbe7a.firebasestorage.app",
+    messagingSenderId: "83078526539",
+    appId: "1:83078526539:web:28d11da8fa3fabe9647fce",
+    measurementId: "G-22XWEX0KYH"
 };
 
-// Only allow sign-ins from this domain
-const ALLOWED_DOMAIN = "envoltz.com";
-
-// Admin password (gates edit access — separate from Google sign-in)
+// Admin password (gates edit access — separate from sign-in)
 const ADMIN_USER = "Gantt";
 const ADMIN_PASS = "Edit123";
 // ============================================================
 
-import { initializeApp }               from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider,
-         signInWithPopup, signOut,
-         onAuthStateChanged }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeApp }                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth,
+         signInWithEmailAndPassword,
+         sendPasswordResetEmail,
+         signOut,
+         onAuthStateChanged }            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection,
          doc, addDoc, setDoc, deleteDoc,
          onSnapshot, serverTimestamp,
-         query, orderBy }               from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+         query, orderBy }                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ── Init Firebase ─────────────────────────────────────────────
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// ── State ─────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────
 const PRIOS  = ['low','medium','high','urgent'];
 const TTYPES = ['Engineering','Production','Procurement'];
 const PCOLS  = ['#FE7400','#1D9E75','#378ADD','#E24B4A','#534AB7','#0F6E56'];
 const TBADGE = {Engineering:'badge-eng',Production:'badge-prod',Procurement:'badge-proc'};
 const TCOL   = {Engineering:'#3C3489',Production:'#0F6E56',Procurement:'#854F0B'};
-const PB     = {low:'pb-low',medium:'pb-medium',high:'pb-high',urgent:'pb-urgent',Engineering:'pb-eng',Production:'pb-prod',Procurement:'pb-proc'};
+const PB     = {low:'pb-low',medium:'pb-medium',high:'pb-high',urgent:'pb-urgent',
+                Engineering:'pb-eng',Production:'pb-prod',Procurement:'pb-proc'};
 
-let tasks      = [];    // live from Firestore
-let team       = [];    // live from Firestore
-let isAdmin    = false;
-let pinnedId   = null;
-let filt       = {priority:'',type:'',assignee:''};
-let curTab     = 'master';
+// ── State ─────────────────────────────────────────────────────
+let tasks       = [];
+let team        = [];
+let isAdmin     = false;
+let pinnedId    = null;
+let filt        = {priority:'',type:'',assignee:''};
+let curTab      = 'master';
 let currentUser = null;
-
-// Unsubscribe handles for Firestore listeners
-let unsubTasks = null;
-let unsubTeam  = null;
+let unsubTasks  = null;
+let unsubTeam   = null;
 
 // ── Helpers ───────────────────────────────────────────────────
 window.toggleTheme = d => {
   document.getElementById('app-wrap').setAttribute('data-theme', d ? 'dark' : '');
   document.getElementById('theme-lbl').textContent = d ? 'Dark' : 'Light';
 };
-function setMC(h)  { document.getElementById('mc').innerHTML = h; }
-function showLoad(m) {
-  document.getElementById('loading-text').textContent = m;
-  document.getElementById('loading-overlay').classList.remove('hidden');
-}
-function hideLoad() { document.getElementById('loading-overlay').classList.add('hidden'); }
+function setMC(h)    { document.getElementById('mc').innerHTML = h; }
+function showLoad(m) { document.getElementById('loading-text').textContent = m; document.getElementById('loading-overlay').classList.remove('hidden'); }
+function hideLoad()  { document.getElementById('loading-overlay').classList.add('hidden'); }
 function setSyncStatus(state, label) {
   document.getElementById('sync-dot').className = 'sync-dot ' + (state||'');
   document.getElementById('sync-lbl').textContent = label;
@@ -471,10 +482,10 @@ function markUpd() {
   const el = document.getElementById('last-upd');
   if(el) el.textContent = 'Last updated: ' + new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
 }
-function inits(n)   { return n.trim().split(/\s+/).map(w=>w[0]||'').join('').toUpperCase().slice(0,2); }
-function getProjs() { return [...new Set(tasks.map(t=>t.project))].sort(); }
-function pcol(p)    { const ps=getProjs(); return PCOLS[ps.indexOf(p)%PCOLS.length]; }
-function teamNames(){ return team.map(m=>m.name); }
+function inits(n)    { return n.trim().split(/\s+/).map(w=>w[0]||'').join('').toUpperCase().slice(0,2); }
+function getProjs()  { return [...new Set(tasks.map(t=>t.project))].sort(); }
+function pcol(p)     { const ps=getProjs(); return PCOLS[ps.indexOf(p)%PCOLS.length]; }
+function teamNames() { return team.map(m=>m.name); }
 function dr(tl) {
   if(!tl.length) return {min:new Date(),max:new Date(),days:30,cols:30};
   const ds=tl.flatMap(t=>[new Date(t.start),new Date(t.end)]);
@@ -493,81 +504,117 @@ function tpf(t) {
 }
 function hasF() { return !!(filt.priority||filt.type||filt.assignee); }
 
-// ── Auth ──────────────────────────────────────────────────────
+// ── Firebase Auth: Email/Password ─────────────────────────────
 window.doSignIn = async () => {
+  const email    = document.getElementById('si-email').value.trim();
+  const password = document.getElementById('si-pass').value;
+  const errEl    = document.getElementById('signin-error');
+  const btn      = document.getElementById('signin-btn');
+
+  errEl.classList.remove('show');
+  document.getElementById('reset-success').classList.remove('show');
+
+  if(!email || !password) {
+    errEl.textContent = 'Please enter your email and password.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
   try {
-    showLoad('Signing in with Google...');
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ hd: ALLOWED_DOMAIN }); // hint to show only org accounts
-    await signInWithPopup(auth, provider);
+    await signInWithEmailAndPassword(auth, email, password);
     // onAuthStateChanged handles the rest
   } catch(e) {
-    hideLoad();
-    if(e.code !== 'auth/popup-closed-by-user') {
-      alert('Sign-in failed: ' + (e.message || e.code));
-    }
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    const msgs = {
+      'auth/invalid-email':         'Invalid email address.',
+      'auth/user-not-found':        'No account found with this email.',
+      'auth/wrong-password':        'Incorrect password. Try again.',
+      'auth/invalid-credential':    'Incorrect email or password.',
+      'auth/too-many-requests':     'Too many attempts. Try again in a few minutes.',
+      'auth/user-disabled':         'This account has been disabled.',
+      'auth/network-request-failed':'Network error. Check your connection.'
+    };
+    errEl.textContent = msgs[e.code] || 'Sign-in failed. Please try again.';
+    errEl.classList.add('show');
+  }
+};
+
+window.doForgotPassword = async () => {
+  const email  = document.getElementById('si-email').value.trim();
+  const errEl  = document.getElementById('signin-error');
+  const succEl = document.getElementById('reset-success');
+  errEl.classList.remove('show');
+  succEl.classList.remove('show');
+
+  if(!email) {
+    errEl.textContent = 'Enter your email address above, then click "Forgot password?"';
+    errEl.classList.add('show');
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    succEl.classList.add('show');
+  } catch(e) {
+    errEl.textContent = 'Could not send reset email. Check the address and try again.';
+    errEl.classList.add('show');
   }
 };
 
 window.doSignOut = async () => {
-  if(unsubTasks) unsubTasks();
-  if(unsubTeam)  unsubTeam();
+  if(unsubTasks) { unsubTasks(); unsubTasks = null; }
+  if(unsubTeam)  { unsubTeam();  unsubTeam  = null; }
   isAdmin = false;
   tasks = []; team = [];
   await signOut(auth);
 };
 
+// ── Auth state observer ───────────────────────────────────────
 onAuthStateChanged(auth, user => {
   if(user) {
-    // Enforce domain restriction client-side too
-    if(!user.email.endsWith('@' + ALLOWED_DOMAIN)) {
-      alert(`Access restricted to @${ALLOWED_DOMAIN} accounts. You signed in with ${user.email}.`);
-      signOut(auth);
-      hideLoad();
-      return;
-    }
     currentUser = user;
-    showLoad('Loading project data...');
-    showApp(user);
+    showDashboard(user);
     startListeners();
   } else {
     currentUser = null;
     hideLoad();
-    showSignIn();
+    showSignInScreen();
   }
 });
 
-function showSignIn() {
-  document.getElementById('signin-screen').style.display  = 'flex';
-  document.getElementById('content-area').style.display   = 'none';
-  document.getElementById('tabbar').style.display         = 'none';
-  document.getElementById('user-area').innerHTML          = '';
-  document.getElementById('admin-bar').innerHTML          = '';
+function showSignInScreen() {
+  document.getElementById('signin-screen').style.display    = 'flex';
+  document.getElementById('content-area').style.display     = 'none';
+  document.getElementById('tabbar').style.display           = 'none';
+  document.getElementById('user-area').innerHTML            = '';
+  document.getElementById('admin-bar').innerHTML            = '';
+  const btn = document.getElementById('signin-btn');
+  if(btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
   setSyncStatus('', 'Not connected');
 }
 
-function showApp(user) {
-  document.getElementById('signin-screen').style.display  = 'none';
-  document.getElementById('content-area').style.display   = 'block';
-  document.getElementById('tabbar').style.display         = 'flex';
+function showDashboard(user) {
+  document.getElementById('signin-screen').style.display    = 'none';
+  document.getElementById('content-area').style.display     = 'block';
+  document.getElementById('tabbar').style.display           = 'flex';
 
-  // User chip
-  const ua = document.getElementById('user-area');
-  ua.innerHTML = `<div class="user-chip">
-    ${user.photoURL
-      ? `<img class="user-avatar" src="${user.photoURL}" alt="avatar">`
-      : `<div class="user-initials">${inits(user.displayName||user.email)}</div>`}
-    <span>${(user.displayName||user.email).split(' ')[0]}</span>
-    <button class="hbtn hbtn-sm" onclick="doSignOut()" style="margin-left:4px">Sign out</button>
-  </div>`;
+  // User chip in header
+  const emailShort = user.email.split('@')[0];
+  document.getElementById('user-area').innerHTML = `
+    <div class="user-chip">
+      <div class="user-initials">${inits(emailShort)}</div>
+      <span>${emailShort}</span>
+      <button class="hbtn hbtn-sm" onclick="doSignOut()" style="margin-left:4px">Sign out</button>
+    </div>`;
 
-  // Admin bar
   renderAdminBar();
 }
 
 function renderAdminBar() {
-  const bar = document.getElementById('admin-bar');
-  bar.innerHTML = isAdmin
+  document.getElementById('admin-bar').innerHTML = isAdmin
     ? `<div class="admin-badge"><span class="admin-dot"></span>Admin</div>
        <button class="hbtn hbtn-out" onclick="doAdminLogout()">Admin off</button>`
     : `<button class="hbtn" onclick="openAdminLogin()">&#128274; Admin</button>`;
@@ -591,36 +638,35 @@ window.doAdminLogin = () => {
 };
 window.bgcl = e => { if(e.target.id==='mbg') setMC(''); };
 
-// ── Firestore real-time listeners ────────────────────────────
-// Firestore onSnapshot fires instantly on every change from ANY user.
-// No polling needed — true push-based real-time sync.
+// ── Firestore real-time listeners ─────────────────────────────
 function startListeners() {
-  // Tasks — ordered by creation time
+  showLoad('Loading project data...');
+  setSyncStatus('', 'Loading...');
+
+  // Tasks
   const tasksQ = query(collection(db,'tasks'), orderBy('createdAt','asc'));
   unsubTasks = onSnapshot(tasksQ, snap => {
     tasks = snap.docs.map(d => ({id:d.id, ...d.data()}));
-    markUpd();
-    render();
+    markUpd(); render();
     setSyncStatus('live','Live');
     hideLoad();
   }, err => {
-    console.error('Tasks listener error:', err);
+    console.error('Tasks error:', err);
     setSyncStatus('error','Sync error');
     hideLoad();
   });
 
-  // Team members
+  // Team
   const teamQ = query(collection(db,'team'), orderBy('name','asc'));
   unsubTeam = onSnapshot(teamQ, snap => {
     team = snap.docs.map(d => ({id:d.id, ...d.data()}));
-    // Seed defaults if empty
-    if(team.length === 0 && isAdmin) seedDefaultTeam();
+    if(team.length === 0) seedTeam();
     render();
-  }, err => console.error('Team listener error:', err));
+  });
 }
 
-async function seedDefaultTeam() {
-  const defaults=['Adam Lillich','Harris LeBlanc','Kody Thompson','C. Wilson','A. Tibbit','Chad Santos','Justin Fritter','J. Lum'];
+async function seedTeam() {
+  const defaults = ['Adam Lillich','Harris LeBlanc','Kody Thompson','C. Wilson','A. Tibbit','Chad Santos','Justin Fritter','J. Lum'];
   for(const name of defaults) await addDoc(collection(db,'team'),{name});
 }
 
@@ -628,15 +674,15 @@ async function seedDefaultTeam() {
 async function addTask(data) {
   setSyncStatus('saving','Saving...');
   try {
-    await addDoc(collection(db,'tasks'), {...data, createdAt:serverTimestamp(), createdBy: currentUser?.email||''});
+    await addDoc(collection(db,'tasks'), {...data, createdAt:serverTimestamp(), createdBy:currentUser?.email||''});
     toast('Task added');
-  } catch(e) { console.error(e); toast('Error saving task'); setSyncStatus('error','Save error'); }
+  } catch(e) { console.error(e); toast('Error saving'); setSyncStatus('error','Error'); }
 }
 async function updateTask(id, data) {
   setSyncStatus('saving','Saving...');
   try {
-    await setDoc(doc(db,'tasks',id), {...data, updatedAt:serverTimestamp(), updatedBy: currentUser?.email||''}, {merge:true});
-  } catch(e) { console.error(e); toast('Error updating task'); setSyncStatus('error','Save error'); }
+    await setDoc(doc(db,'tasks',id), {...data, updatedAt:serverTimestamp(), updatedBy:currentUser?.email||''}, {merge:true});
+  } catch(e) { console.error(e); toast('Error updating'); setSyncStatus('error','Error'); }
 }
 window.delT = async id => {
   if(!isAdmin) return;
@@ -645,20 +691,11 @@ window.delT = async id => {
     await deleteDoc(doc(db,'tasks',id));
     const ps=getProjs(); if(curTab!=='master'&&!ps.includes(curTab)) curTab='master';
     toast('Task deleted');
-  } catch(e) { console.error(e); toast('Error deleting task'); }
+  } catch(e) { console.error(e); toast('Error deleting'); }
 };
-async function addMember(name) {
-  try { await addDoc(collection(db,'team'),{name}); }
-  catch(e) { console.error(e); }
-}
-async function updateMember(id,name) {
-  try { await setDoc(doc(db,'team',id),{name},{merge:true}); }
-  catch(e) { console.error(e); }
-}
-async function deleteMember(id) {
-  try { await deleteDoc(doc(db,'team',id)); }
-  catch(e) { console.error(e); }
-}
+async function addMember(name)       { try { await addDoc(collection(db,'team'),{name}); } catch(e){console.error(e);} }
+async function updateMember(id,name) { try { await setDoc(doc(db,'team',id),{name},{merge:true}); } catch(e){console.error(e);} }
+async function deleteMember(id)      { try { await deleteDoc(doc(db,'team',id)); } catch(e){console.error(e);} }
 
 // ── Popup ─────────────────────────────────────────────────────
 function pphtml(t) {
@@ -672,11 +709,11 @@ function pphtml(t) {
 <div class="pprow"><span class="pplbl">Start</span><span class="ppval">${fd(t.start)}</span></div>
 <div class="pprow"><span class="pplbl">Due</span><span class="ppval">${fd(t.end)}</span></div>
 <div class="pprow" style="margin-top:4px;padding-top:4px;border-top:.5px solid var(--border-soft)">
-  <span class="pplbl">Added by</span><span class="ppval" style="color:var(--text-muted)">${t.createdBy||'Unknown'}</span>
+  <span class="pplbl">Added by</span><span class="ppval" style="color:var(--text-muted);font-size:10px">${t.createdBy||'&#8212;'}</span>
 </div>`;
 }
 let hvt=null;
-function showPP(id,el,pin){
+function showPP(id,el,pin) {
   const t=tasks.find(t=>t.id===id); if(!t)return;
   document.getElementById('pp-t').textContent=t.name;
   document.getElementById('pp-b').innerHTML=pphtml(t);
@@ -695,7 +732,7 @@ window.closePopup = () => {
   pp.className='popup'; pp.style.display='none';
   pinnedId=null; applyHL();
 };
-function applyHL(){
+function applyHL() {
   document.querySelectorAll('.gbar').forEach(b=>{const id=b.dataset.id;b.classList.remove('bhl','bdim');if(pinnedId){if(id===pinnedId)b.classList.add('bhl');else b.classList.add('bdim');}});
   document.querySelectorAll('.grow[data-id]').forEach(r=>{r.classList.toggle('rhl',!!pinnedId&&r.dataset.id===pinnedId);});
   document.querySelectorAll('tr[data-id]').forEach(r=>{const id=r.dataset.id;r.classList.remove('thl','tdim');if(pinnedId){if(id===pinnedId){r.classList.add('thl');r.scrollIntoView({behavior:'smooth',block:'nearest'});}else r.classList.add('tdim');}});
@@ -706,9 +743,9 @@ window.onBC=function(e,id,el){e.stopPropagation();clearTimeout(hvt);if(pinnedId=
 document.addEventListener('click',e=>{if(!pinnedId)return;const pp=document.getElementById('gpopup');if(pp.contains(e.target)||e.target.closest('.gbar'))return;closePopup();});
 
 // ── Filters ───────────────────────────────────────────────────
-window.setF = (k,v) => { filt[k]=v; if(pinnedId)closePopup(); render(); };
-window.clearF = () => { filt={priority:'',type:'',assignee:''}; render(); };
-function fbarHtml(tl){
+window.setF    = (k,v) => { filt[k]=v; if(pinnedId)closePopup(); render(); };
+window.clearF  = () => { filt={priority:'',type:'',assignee:''}; render(); };
+function fbarHtml(tl) {
   const aa=[...new Set(tl.flatMap(t=>t.assignees||[]))].sort();
   const dot=hasF()?'<span class="fadot"></span>':'';
   return `<div class="fbar">
@@ -727,7 +764,7 @@ function fbarHtml(tl){
 }
 
 // ── Gantt ─────────────────────────────────────────────────────
-function ganttHtml(tl){
+function ganttHtml(tl) {
   if(!tl.length) return '<div class="empty">No tasks &#8212; click + Add Task to begin.</div>';
   const {min,max,days,cols}=dr(tl); const step=days/cols;
   let hdr=''; for(let i=0;i<cols;i++){const d=new Date(min);d.setDate(d.getDate()+Math.round(i*step));hdr+=`<div class="gdcell" style="flex:1;min-width:0">${fs(d)}</div>`;}
@@ -754,7 +791,7 @@ function ganttHtml(tl){
 }
 
 // ── Multi-select ──────────────────────────────────────────────
-function msHtml(tid,field,opts,sel,pillCls,locked){
+function msHtml(tid,field,opts,sel,pillCls,locked) {
   const uid=`ms${tid}${field}`;
   const pills=sel.map(s=>`<span class="mspill ${pillCls(s)}" data-v="${s}">${s}${locked?'':` <span class="mspx" onclick="msRm(event,'${uid}','${tid}','${field}','${s.replace(/'/g,"\\'")}')">&#215;</span>`}</span>`).join('');
   if(locked) return `<div class="msw"><div class="msbox lck">${pills||'<span class="msph">&#8212;</span>'}</div></div>`;
@@ -792,7 +829,7 @@ window.msRm=function(e,uid,tid,field,val){
 };
 
 // ── Table ─────────────────────────────────────────────────────
-function tblHtml(tl,showProj){
+function tblHtml(tl,showProj) {
   if(!tl.length) return '';
   const lk=!isAdmin;
   const rows=tl.map((t,i)=>{
@@ -819,11 +856,10 @@ function tblHtml(tl,showProj){
     <tbody>${rows}</tbody>
   </table></div>`;
 }
-
 window.utF = (id,f,v) => {
-  if(!isAdmin) return;
+  if(!isAdmin)return;
   const t=tasks.find(t=>t.id===id);
-  if(t) { t[f]=v; updateTask(id,{[f]:v}); }
+  if(t){t[f]=v; updateTask(id,{[f]:v});}
 };
 window.needAdmin = () => {
   setMC(`<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox mbox-sm">
@@ -841,8 +877,9 @@ function legend(){
 }
 
 // ── Render ────────────────────────────────────────────────────
-function render(){
-  if(!document.getElementById('content-area') || document.getElementById('content-area').style.display==='none') return;
+function render() {
+  if(!document.getElementById('content-area') ||
+     document.getElementById('content-area').style.display==='none') return;
   const ps=getProjs(); const lk=!isAdmin;
   let tabs=`<button class="tab${curTab==='master'?' active':''}" onclick="setTab('master')">All projects</button>`;
   ps.forEach(p=>{tabs+=`<button class="tab${curTab===p?' active':''}" onclick="setTab('${p.replace(/'/g,"\\'")}')"><span class="pdot" style="background:${pcol(p)}"></span>${p}</button>`;});
@@ -872,7 +909,7 @@ window.setTab = p => { closePopup(); curTab=p; render(); };
 
 // ── People manager ────────────────────────────────────────────
 window.openPM = () => { if(!isAdmin){needAdmin();return;} setMC(buildPM()); };
-function buildPM(){
+function buildPM() {
   const rows=team.map((m,i)=>`<div class="prow" id="pr-${i}">
     <div class="pavt">${inits(m.name)}</div><span class="pname" id="pn-${i}">${m.name}</span>
     <button class="dbtn" onclick="editP(${i})" style="font-size:12px;opacity:.6">&#9998;</button>
@@ -880,25 +917,24 @@ function buildPM(){
   </div>`).join('');
   return `<div class="mbg" id="mbg" onclick="bgcl(event)"><div class="mbox" style="width:430px">
     <div class="mhdr"><div class="obar"></div><h3>Manage team members</h3></div>
-    <p class="spnote">Stored in Firestore. Changes are saved in real time and shared with all users immediately.</p>
+    <p class="spnote">Stored in Firestore. Changes are shared with all users in real time.</p>
     <div class="plist" id="plist">${rows}</div>
     <div class="aprow"><input type="text" id="npi" placeholder="Full name" onkeydown="if(event.key==='Enter')addP()"><button class="badd" onclick="addP()">+ Add</button></div>
     <div class="mact" style="margin-top:1.1rem"><button class="bprim" onclick="setMC('');render()">Done</button></div>
   </div></div>`;
 }
-function rebuildPList(){
+function rebuildPList() {
   document.getElementById('plist').innerHTML=team.map((m,i)=>`<div class="prow" id="pr-${i}"><div class="pavt">${inits(m.name)}</div><span class="pname" id="pn-${i}">${m.name}</span><button class="dbtn" onclick="editP(${i})" style="font-size:12px;opacity:.6">&#9998;</button><button class="dbtn" onclick="delP(${i})">&#x2715;</button></div>`).join('');
 }
 window.addP = async () => {
   const inp=document.getElementById('npi'), name=inp.value.trim();
-  if(!name) return;
+  if(!name)return;
   if(team.some(m=>m.name===name)){inp.style.borderColor='#E24B4A';setTimeout(()=>inp.style.borderColor='',1200);return;}
   inp.value='';
-  await addMember(name); // Firestore listener updates team array automatically
+  await addMember(name);
 };
 window.delP = async i => {
   const m=team[i];
-  // Remove from all task assignees in Firestore
   const affected=tasks.filter(t=>(t.assignees||[]).includes(m.name));
   for(const t of affected) await updateTask(t.id,{assignees:t.assignees.filter(a=>a!==m.name)});
   await deleteMember(m.id);
@@ -915,16 +951,15 @@ window.saveP = async i => {
   const old=team[i].name, id=team[i].id;
   inp.outerHTML=`<span class="pname" id="pn-${i}">${nv}</span>`;
   const av=document.querySelector(`#pr-${i} .pavt`); if(av)av.textContent=inits(nv);
-  // Update assignee references in tasks
   const affected=tasks.filter(t=>(t.assignees||[]).includes(old));
   for(const t of affected) await updateTask(t.id,{assignees:t.assignees.map(a=>a===old?nv:a)});
-  await updateMember(id, nv);
+  await updateMember(id,nv);
 };
 window.cancelP = (i,o) => {
   const inp=document.getElementById(`pn-${i}`); if(inp)inp.outerHTML=`<span class="pname" id="pn-${i}">${o}</span>`;
 };
 
-// ── Add task modal ────────────────────────────────────────────
+// ── Add task ──────────────────────────────────────────────────
 window.openAdd = () => {
   if(!isAdmin){needAdmin();return;}
   const today=new Date().toISOString().split('T')[0], ps=getProjs();
@@ -941,7 +976,7 @@ window.openAdd = () => {
   </div></div>`);
 };
 window.subTask = async () => {
-  if(!isAdmin) return;
+  if(!isAdmin)return;
   const name=document.getElementById('fn').value.trim(), proj=document.getElementById('fp').value.trim();
   const start=document.getElementById('fsd').value, end=document.getElementById('fed').value;
   const priority=document.getElementById('fpr').value;
@@ -949,15 +984,12 @@ window.subTask = async () => {
   const assignees=[...document.querySelectorAll('input[name=fa]:checked')].map(c=>c.value);
   if(!name||!proj||!start||!end){alert('Please fill in all required fields.');return;}
   if(end<start){alert('Due date must be on or after start date.');return;}
-  setMC('');
-  curTab=proj;
+  setMC(''); curTab=proj;
   await addTask({name,project:proj,start,end,priority,types,assignees});
-  // Firestore onSnapshot fires → tasks array updates → render() called automatically
 };
 
-// ── Init: show loading until Firebase resolves auth state ─────
+// ── Boot ──────────────────────────────────────────────────────
 showLoad('Checking sign-in status...');
-
 </script>
 </body>
 </html>
