@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -435,7 +435,17 @@ const firebaseConfig = {
 // Get it from: google.com/recaptcha → your site → Settings → Site Key
 const RECAPTCHA_SITE_KEY = "6LcG37osAAAAAGAdIml2LQFf1AUqbS50gpbzkfOf";
 
-// Admin password (gates edit access — separate from sign-in)
+// ── Auto-admin emails ─────────────────────────────────────────
+// Users whose Firebase login email appears here are automatically
+// granted admin privileges on sign-in — no password prompt needed.
+// Add or remove emails freely. Comparison is case-insensitive.
+const ADMIN_EMAILS = [
+    "atibbit@envoltz.com",
+    "alillich@envoltz.com",
+    "hleblanc@envoltz.com",// ← replace with real admin email(s)
+];
+
+// Manual admin password fallback (for users not in ADMIN_EMAILS)
 const ADMIN_USER = "Gantt";
 const ADMIN_PASS = "Edit123";
 // ============================================================
@@ -488,6 +498,13 @@ const PB     = {low:'pb-low',medium:'pb-medium',high:'pb-high',urgent:'pb-urgent
 let tasks       = [];
 let team        = [];
 let isAdmin     = false;
+
+// Returns true if the signed-in user's email is in the ADMIN_EMAILS list
+function isAutoAdmin(user) {
+  if(!user || !user.email) return false;
+  return ADMIN_EMAILS.map(e => e.toLowerCase().trim())
+                     .includes(user.email.toLowerCase().trim());
+}
 let pinnedId    = null;
 let filt        = {priority:'',type:'',assignee:'',project:''};
 let curTab      = 'master';
@@ -622,6 +639,7 @@ window.doSignOut = async () => {
   isAdmin = false;
   tasks = []; team = [];
   await signOut(auth);
+  // isAdmin reset — auto-admin will be re-evaluated on next sign-in
 };
 
 // ── Auth state observer ───────────────────────────────────────
@@ -653,6 +671,11 @@ function showDashboard(user) {
   document.getElementById('content-area').style.display     = 'block';
   document.getElementById('tabbar').style.display           = 'flex';
 
+  // Auto-grant admin if this user's email is in the ADMIN_EMAILS list
+  if(isAutoAdmin(user)) {
+    isAdmin = true;
+  }
+
   // User chip in header
   const emailShort = user.email.split('@')[0];
   document.getElementById('user-area').innerHTML = `
@@ -666,9 +689,13 @@ function showDashboard(user) {
 }
 
 function renderAdminBar() {
+  const auto = isAdmin && isAutoAdmin(currentUser);
   document.getElementById('admin-bar').innerHTML = isAdmin
-    ? `<div class="admin-badge"><span class="admin-dot"></span>Admin</div>
-       <button class="hbtn hbtn-out" onclick="doAdminLogout()">Admin off</button>`
+    ? `<div class="admin-badge">
+         <span class="admin-dot"></span>Admin
+         ${auto ? '<span style="font-size:9px;opacity:.7;margin-left:3px">(auto)</span>' : ''}
+       </div>
+       ${auto ? '' : '<button class="hbtn hbtn-out" onclick="doAdminLogout()">Admin off</button>'}`
     : `<button class="hbtn" onclick="openAdminLogin()">&#128274; Admin</button>`;
 }
 
