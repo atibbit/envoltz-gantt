@@ -1050,10 +1050,10 @@ function makeRow(t, i, showProj, lk) {
     <td><input type="date" value="${t.start||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','start',this.value)`}"></td>
     <td><input type="date" value="${t.end||''}" style="min-width:105px" ${lk?'readonly':''} onchange="${lk?'':` utF('${t.id}','end',this.value)`}"></td>
     <td><select ${lk?'disabled':''} onchange="${lk?'':` utF('${t.id}','priority',this.value)`}">
-      ${PRIOS.map(p=>`<option value="${p}"${p===t.priority?' selected':''}}>${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}
+      ${PRIOS.map(p=>`<option value="${p}"${p===t.priority?' selected':''}>${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}
     </select></td>
     <td><select class="status-sel ${so.cls}" ${lk?'disabled':''} onchange="${lk?'':` utF('${t.id}','status',this.value)`}">
-      ${STATUSES.map(s=>`<option value="${s.val}"${(t.status||'not_started')===s.val?' selected':''}}>${s.label}</option>`).join('')}
+      ${STATUSES.map(s=>`<option value="${s.val}"${(t.status||'not_started')===s.val?' selected':''}>${s.label}</option>`).join('')}
     </select></td>
     <td><button class="dbtn" onclick="${lk?'needAdmin()':` delT('${t.id}')`}" title="${lk?'Admin required':'Delete'}">&#x2715;</button></td>
   </tr>`;
