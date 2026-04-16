@@ -1001,7 +1001,12 @@ function render() {
   if(!document.getElementById('content-area') ||
      document.getElementById('content-area').style.display==='none') return;
   const ps=getProjs(); const lk=!isAdmin;
+  const myName  = myMemberName();
+  const myTasks = myName ? tasks.filter(t=>(t.assignees||[]).includes(myName)) : [];
   let tabs=`<button class="tab${curTab==='master'?' active':''}" onclick="setTab('master')">All projects</button>`;
+  tabs+=`<button class="tab${curTab==='mytasks'?' active':''}" onclick="setTab('mytasks')" style="display:flex;align-items:center;gap:5px">
+    &#128100; My Tasks${myTasks.length>0?` <span style="background:${curTab==='mytasks'?'rgba(0,0,0,.2)':'#FE7400'};color:#000;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:600">${myTasks.length}</span>`:''}
+  </button>`;
   ps.forEach(p=>{tabs+=`<button class="tab${curTab===p?' active':''}" onclick="setTab('${p.replace(/'/g,"\\'")}')"><span class="pdot" style="background:${pcol(p)}"></span>${p}</button>`;});
   tabs+=`<div class="tbr">
     <button class="mbtn" onclick="${lk?'needAdmin()':'openPM()'}">${lk?'&#128274; ':''}Manage people</button>
