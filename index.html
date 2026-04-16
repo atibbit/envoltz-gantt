@@ -431,6 +431,10 @@ const firebaseConfig = {
   measurementId:     "G-22XWEX0KYH"
 };
 
+// reCAPTCHA v3 site key (public — safe to include here)
+// Get it from: google.com/recaptcha → your site → Settings → Site Key
+const RECAPTCHA_SITE_KEY = "YOUR_RECAPTCHA_SITE_KEY";
+
 // Admin password (gates edit access — separate from sign-in)
 const ADMIN_USER = "Gantt";
 const ADMIN_PASS = "Edit123";
@@ -446,10 +450,30 @@ import { getFirestore, collection,
          doc, addDoc, setDoc, deleteDoc,
          onSnapshot, serverTimestamp,
          query, orderBy }                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeAppCheck,
+         ReCaptchaV3Provider }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+
+// ── App Check (reCAPTCHA v3) ──────────────────────────────────
+// Invisible to users — runs silently in the background.
+// Protects Firestore and Auth from bots and unauthorized access.
+// Paste your reCAPTCHA SITE KEY (not secret key) into RECAPTCHA_SITE_KEY above.
+if (RECAPTCHA_SITE_KEY !== "YOUR_RECAPTCHA_SITE_KEY") {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
+    console.log("Firebase App Check (reCAPTCHA v3) initialized.");
+  } catch(e) {
+    console.warn("App Check init failed (non-fatal):", e.message);
+  }
+} else {
+  console.warn("App Check not active — paste your reCAPTCHA site key into RECAPTCHA_SITE_KEY.");
+}
 
 // ── Constants ─────────────────────────────────────────────────
 const PRIOS  = ['low','medium','high','urgent'];
