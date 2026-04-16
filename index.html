@@ -708,7 +708,6 @@ function startListeners() {
     unsubTeam = onSnapshot(teamQ, snap => {
       team = snap.docs.map(d => ({id:d.id, ...d.data()}));
       team.sort((a,b)=>a.name.localeCompare(b.name));
-      if(team.length === 0) seedTeam();
       if(document.getElementById('plist')) rebuildPList();
       render();
     }, err => {
@@ -732,11 +731,6 @@ function showErrorBanner(msg) {
   div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#A32D2D;color:#fff;padding:12px 20px;font-size:13px;line-height:1.5;display:flex;gap:12px;align-items:flex-start';
   div.innerHTML = `<span style="flex:1">&#9888; ${msg}</span><button onclick="document.getElementById('err-banner').remove()" style="background:none;border:1px solid rgba(255,255,255,.4);color:#fff;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:12px;flex-shrink:0">Dismiss</button>`;
   document.body.prepend(div);
-}
-
-async function seedTeam() {
-  const defaults = ['Adam Lillich','Harris LeBlanc','Kody Thompson','C. Wilson','A. Tibbit','Chad Santos','Justin Fritter','J. Lum'];
-  for(const name of defaults) await addDoc(collection(db,'team'),{name, email:''});
 }
 
 // ── CRUD ──────────────────────────────────────────────────────
