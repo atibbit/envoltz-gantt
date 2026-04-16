@@ -236,7 +236,7 @@ select:focus{outline:none;border-color:#FE7400}
 .msbox.open{border-color:#FE7400}
 .mspill{display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:500;white-space:nowrap}
 .mspx{cursor:pointer;opacity:.6;font-size:10px;line-height:1}.mspx:hover{opacity:1}
-.msdd{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bg-card);border:.5px solid var(--border-input);border-radius:8px;z-index:100;max-height:160px;overflow-y:auto;display:none;min-width:170px;box-shadow:var(--shadow)}
+.msdd{position:fixed;background:var(--bg-card);border:.5px solid var(--border-input);border-radius:8px;z-index:9999;max-height:200px;overflow-y:auto;display:none;min-width:180px;box-shadow:var(--shadow)}
 .msdd.open{display:block}
 .msopt{padding:5px 9px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-primary)}
 .msopt:hover{background:var(--row-hover)}
@@ -414,7 +414,7 @@ select:focus{outline:none;border-color:#FE7400}
 const firebaseConfig = {
     apiKey: "AIzaSyD-a1dqnbNaAV1O1bVCxb6xMt1mmBiDRnI",
     authDomain: "gantt-chart-bbe7a.firebaseapp.com",
-    projectId:         "gantt-chart-bbe7a",
+    projectId: "gantt-chart-bbe7a",
     storageBucket: "gantt-chart-bbe7a.firebasestorage.app",
     messagingSenderId: "83078526539",
     appId: "1:83078526539:web:28d11da8fa3fabe9647fce",
@@ -661,6 +661,10 @@ function startListeners() {
   unsubTeam = onSnapshot(teamQ, snap => {
     team = snap.docs.map(d => ({id:d.id, ...d.data()}));
     if(team.length === 0) seedTeam();
+    // If the people manager modal is open, refresh its list in-place
+    if(document.getElementById('plist')) {
+      rebuildPList();
+    }
     render();
   });
 }
@@ -802,12 +806,49 @@ function tpc(t){return TBADGE[t]||'';}
 function apc(){return '';}
 window.msO=function(e,uid){
   if(!isAdmin)return; e.stopPropagation();
-  document.querySelectorAll('.msdd.open').forEach(d=>{if(d.id!==uid+'-dd'){d.classList.remove('open');const b=d.previousElementSibling;if(b)b.classList.remove('open');}});
+  // Close any other open dropdowns
+  document.querySelectorAll('.msdd.open').forEach(d=>{
+    if(d.id!==uid+'-dd'){d.classList.remove('open');const b=d.previousElementSibling;if(b)b.classList.remove('open');}
+  });
   const dd=document.getElementById(uid+'-dd');
-  if(dd){dd.classList.toggle('open');document.getElementById(uid).querySelector('.msbox').classList.toggle('open',dd.classList.contains('open'));}
+  const wrap=document.getElementById(uid);
+  if(!dd||!wrap)return;
+  const isOpen=dd.classList.contains('open');
+  if(isOpen){dd.classList.remove('open');wrap.querySelector('.msbox').classList.remove('open');return;}
+  // Position using fixed viewport coords so it escapes table overflow clipping
+  const box=wrap.querySelector('.msbox');
+  const r=box.getBoundingClientRect();
+  const ddWidth=Math.max(r.width,190);
+  // Temporarily show off-screen to measure height
+  dd.style.visibility='hidden';
+  dd.style.top='0px';
+  dd.style.left='0px';
+  dd.style.width=ddWidth+'px';
+  dd.classList.add('open');
+  const ddH=dd.offsetHeight;
+  const spaceBelow=window.innerHeight-r.bottom-6;
+  const spaceAbove=r.top-6;
+  // Prefer opening downward, flip up if not enough room
+  let top=(spaceBelow>=ddH||spaceBelow>=spaceAbove)?r.bottom+2:r.top-ddH-2;
+  let left=r.left;
+  if(left+ddWidth>window.innerWidth-6)left=window.innerWidth-ddWidth-6;
+  if(left<4)left=4;
+  dd.style.top=top+'px';
+  dd.style.left=left+'px';
+  dd.style.visibility='visible';
+  box.classList.add('open');
   document.addEventListener('click',closeMs,{once:true});
 };
-function closeMs(){document.querySelectorAll('.msdd.open').forEach(d=>{d.classList.remove('open');const b=d.previousElementSibling;if(b)b.classList.remove('open');});}
+function closeMs(){
+  document.querySelectorAll('.msdd.open').forEach(d=>{
+    d.classList.remove('open');
+    d.style.visibility='';
+    const b=d.previousElementSibling;if(b)b.classList.remove('open');
+  });
+}
+// Close dropdowns on scroll or resize so they don't float away from their anchor
+window.addEventListener('scroll',closeMs,true);
+window.addEventListener('resize',closeMs);
 window.msT=function(uid,tid,field,val,chk){
   if(!isAdmin)return;
   const t=tasks.find(t=>t.id===tid); if(!t)return;
@@ -908,6 +949,7 @@ function render() {
 window.setTab = p => { closePopup(); curTab=p; render(); };
 
 // ── People manager ────────────────────────────────────────────
+window.closePM = () => { setMC(''); render(); };
 window.openPM = () => { if(!isAdmin){needAdmin();return;} setMC(buildPM()); };
 function buildPM() {
   const rows=team.map((m,i)=>`<div class="prow" id="pr-${i}">
@@ -920,25 +962,33 @@ function buildPM() {
     <p class="spnote">Stored in Firestore. Changes are shared with all users in real time.</p>
     <div class="plist" id="plist">${rows}</div>
     <div class="aprow"><input type="text" id="npi" placeholder="Full name" onkeydown="if(event.key==='Enter')addP()"><button class="badd" onclick="addP()">+ Add</button></div>
-    <div class="mact" style="margin-top:1.1rem"><button class="bprim" onclick="setMC('');render()">Done</button></div>
+    <div class="mact" style="margin-top:1.1rem"><button class="bprim" onclick="closePM()">Done</button></div>
   </div></div>`;
 }
 function rebuildPList() {
   document.getElementById('plist').innerHTML=team.map((m,i)=>`<div class="prow" id="pr-${i}"><div class="pavt">${inits(m.name)}</div><span class="pname" id="pn-${i}">${m.name}</span><button class="dbtn" onclick="editP(${i})" style="font-size:12px;opacity:.6">&#9998;</button><button class="dbtn" onclick="delP(${i})">&#x2715;</button></div>`).join('');
 }
 window.addP = async () => {
-  const inp=document.getElementById('npi'), name=inp.value.trim();
-  if(!name)return;
-  if(team.some(m=>m.name===name)){inp.style.borderColor='#E24B4A';setTimeout(()=>inp.style.borderColor='',1200);return;}
-  inp.value='';
-  await addMember(name);
+  const inp = document.getElementById('npi');
+  if(!inp) return;
+  const name = inp.value.trim();
+  if(!name) return;
+  if(team.some(m => m.name === name)) {
+    inp.style.borderColor = '#E24B4A';
+    setTimeout(() => inp.style.borderColor = '', 1200);
+    return;
+  }
+  inp.value = '';          // clear immediately so user can type the next one
+  inp.focus();
+  await addMember(name);   // Firestore write → onSnapshot fires → rebuildPList() called automatically
 };
 window.delP = async i => {
-  const m=team[i];
-  const affected=tasks.filter(t=>(t.assignees||[]).includes(m.name));
-  for(const t of affected) await updateTask(t.id,{assignees:t.assignees.filter(a=>a!==m.name)});
+  const m = team[i];
+  // Remove this person from any task assignee lists
+  const affected = tasks.filter(t => (t.assignees||[]).includes(m.name));
+  for(const t of affected) await updateTask(t.id, {assignees: t.assignees.filter(a => a !== m.name)});
   await deleteMember(m.id);
-  setMC(buildPM());
+  // onSnapshot fires → team array updates → rebuildPList() called automatically
 };
 window.editP = i => {
   const o=team[i].name, s=document.getElementById(`pn-${i}`);
