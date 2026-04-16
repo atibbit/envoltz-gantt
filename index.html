@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -433,7 +433,7 @@ const firebaseConfig = {
 
 // reCAPTCHA v3 site key (public — safe to include here)
 // Get it from: google.com/recaptcha → your site → Settings → Site Key
-    const RECAPTCHA_SITE_KEY = "6LcG37osAAAAAGAdIml2LQFf1AUqbS50gpbzkfOf";
+const RECAPTCHA_SITE_KEY = "6LcG37osAAAAAGAdIml2LQFf1AUqbS50gpbzkfOf";
 
 // Admin password (gates edit access — separate from sign-in)
 const ADMIN_USER = "Gantt";
@@ -501,6 +501,7 @@ window.toggleTheme = d => {
   document.getElementById('theme-lbl').textContent = d ? 'Dark' : 'Light';
 };
 function setMC(h)    { document.getElementById('mc').innerHTML = h; }
+window.setMC = setMC;
 function showLoad(m) { document.getElementById('loading-text').textContent = m; document.getElementById('loading-overlay').classList.remove('hidden'); }
 function hideLoad()  { document.getElementById('loading-overlay').classList.add('hidden'); }
 function setSyncStatus(state, label) {
@@ -526,9 +527,15 @@ function myMemberName() {
   const me = team.find(m => (m.email||'').toLowerCase().trim() === currentUser.email.toLowerCase().trim());
   return me ? me.name : null;
 }
+// Parse a YYYY-MM-DD string as LOCAL midnight (avoids UTC timezone shift)
+function parseDate(s) {
+  if(!s) return new Date();
+  if(typeof s === 'string') return new Date(s + 'T00:00:00');
+  return new Date(s);
+}
 function dr(tl) {
   if(!tl.length) return {min:new Date(),max:new Date(),days:30,cols:30};
-  const ds=tl.flatMap(t=>[new Date(t.start),new Date(t.end)]);
+  const ds=tl.flatMap(t=>[parseDate(t.start),parseDate(t.end)]);
   let mn=new Date(Math.min(...ds)), mx=new Date(Math.max(...ds));
   mn.setDate(mn.getDate()-2); mx.setDate(mx.getDate()+2);
   const days=Math.ceil((mx-mn)/864e5);
@@ -672,7 +679,7 @@ window.openAdminLogin = () => {
     <div class="lerr" id="lerr">Incorrect username or password.</div>
     <div class="mf"><label>Username</label><input type="text" id="lu" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('lp').focus()"></div>
     <div class="mf"><label>Password</label><input type="password" id="lp" autocomplete="off" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
-    <div class="mact"><button class="bcanc" onclick="setMC('')">Cancel</button><button class="bdark" onclick="doAdminLogin()">Login</button></div>
+    <div class="mact"><button class="bcanc" onclick="closeAdd()">Cancel</button><button class="bdark" onclick="doAdminLogin()">Login</button></div>
   </div></div>`);
   setTimeout(()=>{const u=document.getElementById('lu');if(u)u.focus();},40);
 };
@@ -871,7 +878,7 @@ function ganttHtml(tl) {
   let hdr=''; for(let i=0;i<cols;i++){const d=new Date(min);d.setDate(d.getDate()+Math.round(i*step));hdr+=`<div class="gdcell" style="flex:1;min-width:0">${fs(d)}</div>`;}
   let grid=''; for(let i=0;i<cols;i++) grid+=`<div class="ggcol"></div>`;
   let rows=tl.map(t=>{
-    const ts=new Date(t.start),te=new Date(t.end),tot=max-min;
+    const ts=parseDate(t.start),te=parseDate(t.end),tot=max-min;
     const L=Math.max(0,(ts-min)/tot*100),R=Math.max(0,(max-te)/tot*100),W=Math.max(2,100-L-R);
     const tc=t.types&&t.types[0]?TCOL[t.types[0]]:null;
     const passes=tpf(t);
@@ -1067,7 +1074,7 @@ function render() {
   </div>`;
   html+=`<div class="gpage${curTab==='master'?' active':''}" id="pg-master">
     <div style="margin-bottom:14px"><span class="stit">All projects &#8212; ${tasks.length} task${tasks.length!==1?'s':''}</span></div>
-    ${fbarHtml(tasks)}${legend()}${ganttHtml(tasks)}${tblHtml(tasks,true)}</div>`;
+    ${fbarHtml(tasks,true)}${legend()}${ganttHtml(tasks)}${tblHtml(tasks,true)}</div>`;
   ps.forEach(p=>{
     const pt=tasks.filter(t=>t.project===p);
     html+=`<div class="gpage${curTab===p?' active':''}" id="pg-${p.replace(/[^a-z0-9]/gi,'_')}">
@@ -1167,6 +1174,19 @@ window.cancelP = (i,o) => {
 };
 
 // ── Add task ──────────────────────────────────────────────────
+window.closeAdd = () => setMC('');
+// Sync due date to match start date only if due date is still at its default
+// (i.e. user hasn't manually changed it yet)
+window.syncDueDate = (startVal) => {
+  const fed = document.getElementById('fed');
+  if(!fed) return;
+  // Only auto-update if due date is still <= old start date (user hasn't picked a later end)
+  if(!fed.dataset.userChanged) fed.value = startVal;
+};
+// Mark due date as user-changed once they touch it
+document.addEventListener('change', e => {
+  if(e.target && e.target.id === 'fed') e.target.dataset.userChanged = '1';
+}, true);
 window.openAdd = () => {
   if(!isAdmin){needAdmin();return;}
   const today=new Date().toISOString().split('T')[0], ps=getProjs();
@@ -1176,10 +1196,10 @@ window.openAdd = () => {
     <div class="mf"><label>Project number</label><input type="text" id="fp" list="fpl" placeholder="e.g. PRJ-004"><datalist id="fpl">${ps.map(p=>`<option value="${p}">`).join('')}</datalist></div>
     <div class="mf"><label>Task type</label><div class="mms">${TTYPES.map(t=>`<label><input type="checkbox" name="ft" value="${t}"> ${t}</label>`).join('')}</div></div>
     <div class="mf"><label>Assigned to</label><div class="mms">${teamNames().map(m=>`<label><input type="checkbox" name="fa" value="${m}"> ${m}</label>`).join('')}</div></div>
-    <div class="mf"><label>Start date</label><input type="date" id="fsd" value="${today}"></div>
+    <div class="mf"><label>Start date</label><input type="date" id="fsd" value="${today}" onchange="syncDueDate(this.value)"></div>
     <div class="mf"><label>Due date</label><input type="date" id="fed" value="${today}"></div>
     <div class="mf"><label>Priority</label><select id="fpr">${PRIOS.map(p=>`<option value="${p}">${p[0].toUpperCase()+p.slice(1)}</option>`).join('')}</select></div>
-    <div class="mact"><button class="bcanc" onclick="setMC('')">Cancel</button><button class="bprim" onclick="subTask()">Add task</button></div>
+    <div class="mact"><button class="bcanc" onclick="closeAdd()">Cancel</button><button class="bprim" onclick="subTask()">Add task</button></div>
   </div></div>`);
 };
 window.subTask = async () => {
